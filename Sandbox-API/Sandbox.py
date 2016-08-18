@@ -189,7 +189,7 @@ class Sandbox:
         return return_dict
 
     def get_sandbox_ids(self, sandbox_name):
-        """Returns the sandbox id, given sandbox name
+        """Returns the sandbox ids for the given sandbox name
         :param sandbox_name: Sandbox name
         :return: Sandbox id
         """
@@ -212,7 +212,7 @@ class Sandbox:
         return response.ok
 
     def stop_sandboxes_by_name(self, sandbox_name):
-        """Stop the sandbox given sandbox name
+        """Stop all the sandboxes with the given sandbox name
         :param sandbox_name: Sandbox name
         :return: True if success, False if not
         """

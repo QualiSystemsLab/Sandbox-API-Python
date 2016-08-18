@@ -38,7 +38,7 @@ class Sandbox:
             response = requests.post(url_str, json=json_dict, headers=self.headers, data=json.dumps(data_dict))
 
         if not response.ok:
-            sys.exit('Error code: {}\nError text: {}\nP{} failed, exiting'.format(response.status_code,
+            raise Exception('Error code: {}\nError text: {}\nP{} failed, exiting'.format(response.status_code,
                                                                                   json.loads(response.text)[
                                                                                       'message'], url_str))
         return response

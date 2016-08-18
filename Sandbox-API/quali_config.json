@@ -1,7 +1,7 @@
 {
-  "server_name": "localhost",
+  "server_name": "SERVER_NAME_OR_IP",
   "server_port": "82",
-  "username": "admin",
-  "password": "admin",
-  "domain": "Global"
+  "username": "USERNAME",
+  "password": "PASSWORD",
+  "domain": "DOMAIN"
 }

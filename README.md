@@ -3,6 +3,7 @@ Sandbox API Python wrapper
 
 **Usage:**
 ```python
+from Sandbox import Sandbox
 blueprint_name = "Sandbox Python API Test"
 sandbox_name = "Sandbox Python API Test"
 config_file = "quali_config.json"

@@ -2,7 +2,7 @@
 Sandbox API Python wrapper
 
 **Usage:**
-```
+```python
 blueprint_name = "Sandbox Python API Test"
 sandbox_name = "Sandbox Python API Test"
 config_file = "quali_config.json"

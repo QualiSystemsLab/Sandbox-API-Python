@@ -1,265 +1,357 @@
-import requests
 import json
+import requests
 
 
-class Sandbox:
+class SandboxAPI:
+    """ Python wrapper for CloudShell Sandbox API
     """
-    Sandbox Python API wrapper
-    """
-
-    def __init__(self, config_file):
-        quali_config = json.load(open(config_file, 'r'))
-        self.server_address = 'http://{}:{}/api'.format(quali_config['server_name'], quali_config['server_port'])
-        self.username = quali_config['username']
-        self.password = quali_config['password']
-        self.domain = quali_config['domain']
-        self.auth_code = ''
-        self.headers = ''
-
-    def _request_and_parse(self, request_type, url_str, json_dict={}, data_dict={}):
+    def __init__(self, host, username, password, domain='Global', port=82):
+        """Initializes and logs in Sandbox
+        :param str host: hostname of IP address of sandbox API server
+        :param str username: CloudShell username
+        :param str password: CloudShell password
+        :param str domain: CloudShell domain (default=Global)
+        :param int port: Sandbox API port number(default=82)
         """
+        self._server_url = 'http://{}:{}/api'.format(host, port)
+        response = requests.put('{}/login'.format(self._server_url),
+                                json={'username': username, 'password': password, 'domain': domain})
 
-        :param request_type:
-        :param url_str:
-        :param json_dict:
-        :param data_dict:
-        :return:
-        """
-
-        response = ''
-        if request_type.lower() == 'put':
-            response = requests.put(url_str, json=json_dict, headers=self.headers)
-
-        elif request_type.lower() == 'get':
-            response = requests.get(url_str, json=json_dict, headers=self.headers)
-
-        elif request_type.lower() == 'post':
-            response = requests.post(url_str, json=json_dict, headers=self.headers, data=json.dumps(data_dict))
-
-        if not response.ok:
-            raise Exception('Error code: {}\nError text: {}\nP{} failed, exiting'.format(response.status_code,
-                                                                                  json.loads(response.text)[
-                                                                                      'message'], url_str))
-        return response
-
-    def login(self):
-        """Login and set some internal variables
-        """
-        url_str = self.server_address + '/login'
-        json_dict = {'username': self.username, 'password': self.password, 'domain': self.domain}
-        response = self._request_and_parse('put', url_str, json_dict)
-        self.auth_code = "Basic " + response.content[1:-1]
-        self.headers = {"Authorization": self.auth_code, "Content-Type": "application/json"}
+        self._headers = {"Authorization": "Basic " + response.content[1:-1].decode('utf-8'),
+                         "Content-Type": "application/json"}
 
     def get_blueprints(self):
-        """Get all blueprints details
-        :return: <dict> Dict of blueprints and their ids
+        """Get list of blueprints
+        :return:
         """
-        url_str = '{}{}'.format(self.server_address, '/v1/blueprints')
-        response = self._request_and_parse('get', url_str)
-
-        # parse the output
-        parsed_response = json.loads(response.content)
-        blueprint_names = [blueprint['name'].encode('utf-8') for blueprint in parsed_response]
-        blueprint_ids = [blueprint['id'].encode('utf-8') for blueprint in parsed_response]
-        blueprint_dict = dict(zip(blueprint_names, blueprint_ids))
-
-        # return a dictionary of blueprints names and their ids
-        return blueprint_dict
-
-    def get_blueprint_id(self, blueprint_name):
-        """Return blueprint id, given blueprint name
-        :param blueprint_name: Name of the blueprint
-        :return: blueprint_id
-        """
-
-        # Get all blueprints and see if blueprint_name exists in the list
-        blueprints = self.get_blueprints()
-        if blueprint_name not in blueprints.iterkeys():
-            raise Exception(
-                'Blueprint "{}" not found, exiting'.format(blueprint_name))
-
-        # If exists, return name of blueprint
-        return blueprints[blueprint_name]
+        response = requests.get('{}/v2/blueprints'.format(self._server_url), headers=self._headers)
+        if response.ok:
+            return json.loads(response.content)
+        return response.reason
 
     def get_blueprint_details(self, blueprint_id):
-        """Returns a dict of the blueprint, given the blueprint id
-        :param blueprint_id: blueprint_id
-        :return: dict of name, estimated_setup_duration, description of the blueprint
+        """Get details of a specific blueprint
+        :param blueprint_id: Blueprint name or id
+        :return:
         """
-        url_str = '{}{}{}'.format(self.server_address, '/v1/blueprints/', blueprint_id)
-        response = self._request_and_parse('get', url_str)
-        parsed_blueprint_details = json.loads(response.content)
-        return_dict = {'name': parsed_blueprint_details['name'],
-                       'estimated_setup_duration': parsed_blueprint_details['estimated_setup_duration'],
-                       'description': parsed_blueprint_details['description']}
-        return return_dict
-
-    def get_blueprint_details_by_name(self, blueprint_name):
-        """Create a sandbox from the provided blueprint name
-        :param blueprint_name: blueprint name
-        :return: dict of name, estimated_setup_duration, description of the blueprint
-        """
-        blueprint_id = self.get_blueprint_id(blueprint_name)
-        return self.get_blueprint_details(blueprint_id)
-
-    def start_sandbox(self, blueprint_id, duration, sandbox_name=''):
-        """Create a sandbox from the provided blueprint id
-        :param blueprint_id: blueprint_id
-        :param duration: duration in minutes
-        :param sandbox_name: name of the sandbox, same as blueprint if name=''
-        :return: if success sandbox_id, else False
-        """
-
-        # Do some parameter validation
-        try:
-            int(duration)
-        except ValueError:
-            raise Exception('Duration "{}" has to be integer'.format(duration))
-
-        duration = 'PT{}M'.format(duration)
-        if sandbox_name == '':
-            sandbox_name = self.get_blueprint_details(blueprint_id)['name']
-
-        url_str = '{}{}{}/{}'.format(self.server_address, '/v1/blueprints/', blueprint_id, 'start')
-        data_dict = {"duration": duration, "name": sandbox_name}
-        response = self._request_and_parse('post', url_str, data_dict=data_dict)
+        response = requests.get('{}/v2/blueprints/{}'.format(self._server_url, blueprint_id), headers=self._headers)
         if response.ok:
-            return json.loads(response.content)['id']
-        else:
-            return response.ok
+            return json.loads(response.content)
+        return response.reason
 
-    def start_sandbox_by_name(self, blueprint_name, duration, sandbox_name=''):
-        """Create a sandbox from the provided blueprint name
-        :param blueprint_name: blueprint_name
-        :param duration: duration in minutes
-        :param sandbox_name: sandbox name
-        :return: if success sandbox_id, else False
+    def start_sandbox(self, blueprint_id, duration, sandbox_name=None, parameters=None, permitted_users=None):
+        """Create a sandbox from the provided blueprint id
+        :param list permitted_users: list of permitted users ex: ['user1', 'user2']
+        :param list parameters: List of dicts, input parameters in the format ex: [{"name": "Version",
+            "value": "3.0"}, {"name": "Build Number", "value": "5"}]
+        :param str blueprint_id: blueprint_id or name
+        :param str duration: duration in ISO 8601 format (P1Y1M1DT1H1M1S = 1year, 1month, 1day, 1hour, 1min, 1sec)
+        :param str sandbox_name: name of the sandbox, same as blueprint if name=''
+        :return:
         """
-        blueprint_id = self.get_blueprint_id(blueprint_name)
-        if sandbox_name == '':
-            sandbox_name = blueprint_name
-        return self.start_sandbox(blueprint_id, duration, sandbox_name)
+        if not sandbox_name:
+            sandbox_name = self.get_blueprint_details(blueprint_id)['name']
+        data_dict = {"duration": duration, "name": sandbox_name}
+        if permitted_users:
+            data_dict['permitted_users'] = permitted_users
+        if parameters:
+            data_dict["params"] = parameters
+
+        response = requests.post('{}/v2/blueprints/{}/start'.format(self._server_url, blueprint_id),
+                                 headers=self._headers,
+                                 data=json.dumps(data_dict))
+        if response.ok:
+            return json.loads(response.content)
+        return response.reason
 
     def get_sandboxes(self):
-        """Returns a dictionary of all sandboxes name and their ids
-        :return: A dict of sandbox ids and names
+        """Get list of sandboxes
+        :return:
         """
-        url_str = '{}{}'.format(self.server_address, '/v1/sandboxes')
-        response = self._request_and_parse('get', url_str)
-
-        # parse the output
-        parsed_response = json.loads(response.content)
-        sandbox_names = [sandbox['name'].encode('utf-8') for sandbox in parsed_response]
-        sandbox_ids = [sandbox['id'].encode('utf-8') for sandbox in parsed_response]
-        sandbox_dict = dict(zip(sandbox_ids, sandbox_names))
-
-        # return a dictionary of sandboxes names and their ids
-        return sandbox_dict
+        response = requests.get('{}/v2/sandboxes'.format(self._server_url), headers=self._headers)
+        if response.ok:
+            return json.loads(response.content)
+        return response.reason
 
     def get_sandbox_details(self, sandbox_id):
-        """Returns a dictionary of the sandbox, its name, type and state
-        :param sandbox_id: <str> Sandbox id
-        :return: dictionary of sandbox name, type and state
+        """Get details of the given sandbox id
+        :param sandbox_id: Sandbox id
+        :return:
         """
+        response = requests.get('{}/v2/sandboxes/{}'.format(self._server_url, sandbox_id), headers=self._headers)
+        if response.ok:
+            return json.loads(response.content)
+        return response.reason
 
-        # Get info from cloudshell
-        url_str = '{}{}{}'.format(self.server_address, '/v1/sandboxes/', sandbox_id)
-        response = self._request_and_parse('get', url_str)
-
-        # parse the information
-        parsed_blueprint_details = json.loads(response.content)
-
-        # prepare a dictionary to return
-        return_dict = {'name': parsed_blueprint_details['name'],
-                       'type': parsed_blueprint_details['type'],
-                       'state': parsed_blueprint_details['state']}
-        return return_dict
-
-    def get_sandboxes_details_by_name(self, sandbox_name):
+    def get_sandbox_activity(self, sandbox_id):
+        """Get list of sandbox activity
+        :param str sandbox_id: Sandbox id
+        :return:
         """
-        :param sandbox_name: Sandbox name
-        :return: dictionary of sandbox name, type and state
-        """
-        return_dict = {}
-        sandbox_ids = self.get_sandbox_ids(sandbox_name)
-        for sandbox_id in sandbox_ids:
-            return_dict[sandbox_id] = self.get_sandbox_details(sandbox_id)
-        return return_dict
+        response = requests.get('{}/v2/sandboxes/{}/{}'.format(self._server_url, sandbox_id, 'activity'),
+                                headers=self._headers)
+        if response.ok:
+            return json.loads(response.content)
+        return response.reason
 
-    def get_sandbox_ids(self, sandbox_name):
-        """Returns the sandbox ids for the given sandbox name
-        :param sandbox_name: Sandbox name
-        :return: Sandbox id
+    def get_sandbox_commands(self, sandbox_id):
+        """Get list of sandbox commands
+        :param str sandbox_id: Sandbox id
+        :return:
         """
-        sandboxes = self.get_sandboxes()
-        if sandbox_name not in sandboxes.itervalues():
-            raise Exception(
-                'Sandbox "{}" not found, exiting'.format(sandbox_name))
+        response = requests.get('{}/v2/sandboxes/{}/commands'.format(self._server_url, sandbox_id),
+                                headers=self._headers)
+        if response.ok:
+            return json.loads(response.content)
+        return response.reason
 
-        sandbox_ids = [k for k, v in sandboxes.iteritems() if v == sandbox_name]
-        return sandbox_ids
+    def get_sandbox_command_details(self, sandbox_id, command_name):
+        """Get details of specific sandbox command
+        :param str sandbox_id: Sandbox id
+        :param str command_name: Sandbox command to be executed
+        :return:
+        """
+        response = requests.get('{}/v2/sandboxes/{}/commands/{}'.format(
+            self._server_url, sandbox_id, command_name),
+            headers=self._headers)
+        if response.ok:
+            return json.loads(response.content)
+        return response.reason
+
+    def sandbox_command_start(self, sandbox_id, command_name, params=None):
+        """Start a sandbox command
+        :param str sandbox_id: Sandbox id
+        :param str command_name: Sandbox command to be executed
+        :param dict params: parameters to be passed to the command ex: {"params": [{"name": "WaitTime", "value": "1"}],
+            "printOutput": True}
+        :return:
+        """
+        if params:
+            response = requests.post('{}/v2/sandboxes/{}/commands/{}/start'.format(
+                self._server_url, sandbox_id, command_name),
+                data=json.dumps(params),
+                headers=self._headers)
+        else:
+            response = requests.post('{}/v2/sandboxes/{}/commands/{}/start'.format(
+                self._server_url, sandbox_id, command_name),
+                headers=self._headers)
+
+        if response.ok:
+            return json.loads(response.content)
+        return response.reason
+
+    def get_sandbox_components(self, sandbox_id):
+        """Get list of sandbox components
+        :param str sandbox_id: Sandbox id
+        :return: Returns a list of tuples of component type, name and id
+        """
+        response = requests.get('{}/v2/sandboxes/{}/components'.format(
+            self._server_url, sandbox_id), headers=self._headers)
+        if response.ok:
+            return json.loads(response.content)
+        return response.reason
+
+    def get_sandbox_component_details(self, sandbox_id, component_id):
+        """Get details of components in sandbox
+        :param str sandbox_id: Sandbox id
+        :param str component_id: Component id
+        :return: Returns a tuple of component type, name, id, address, description
+        """
+        response = requests.get('{}/v2/sandboxes/{}/components/{}'.format(self._server_url, sandbox_id, component_id),
+                                headers=self._headers)
+        if response.ok:
+            return json.loads(response.content)
+        return response.reason
+
+    def get_sandbox_component_commands(self, sandbox_id, component_id):
+        """Get list of commands for a particular component in sandbox
+        :param str sandbox_id: Sandbox id
+        :param str component_id: Component id
+        :return:
+        """
+        response = requests.get('{}/v2/sandboxes/{}/components/{}/commands'.format(
+            self._server_url, sandbox_id, component_id), headers=self._headers)
+        if response.ok:
+            return json.loads(response.content)
+        return response.reason
+
+    def get_sandbox_component_command_details(self, sandbox_id, component_id, command):
+        """Get details of a command of sandbox component
+        :param str sandbox_id: Sandbox id
+        :param str component_id: Component id
+        :param str command: Command name
+        :return:
+        """
+        response = requests.get('{}/v2/sandboxes/{}/components/{}/commands/{}'.format(
+            self._server_url, sandbox_id, component_id, command), headers=self._headers)
+        if response.ok:
+            return json.loads(response.content)
+        return response.reason
+
+    def sandbox_component_command_start(self, sandbox_id, component_id, command_name, params=None):
+        """Start a command on sandbox component
+        :param str sandbox_id: Sandbox id
+        :param str component_id: Component id
+        :param str command_name: Command name
+        :param dict params: parameters to be passed to the command ex:
+            {"params": [{"name": "Duration", "value": "Sandbox tester"}], "printOutput": True}
+        :return:
+        """
+        if params:
+            response = requests.post('{}/v2/sandboxes/{}/components/{}/commands/{}/start'.format(
+                self._server_url, sandbox_id, component_id, command_name), data=json.dumps(params),
+                headers=self._headers)
+        else:
+            response = requests.post('{}/v2/sandboxes/{}/components/{}/commands/{}/start'.format(
+                self._server_url, sandbox_id, component_id, command_name), headers=self._headers)
+        if response.ok:
+            return json.loads(response.content)
+        return response.reason
+
+    def extend_sandbox(self, sandbox_id, duration):
+        """Extend the sandbox
+        :param str sandbox_id: Sandbox id
+        :param str duration: duration in ISO 8601 format (P1Y1M1DT1H1M1S = 1year, 1month, 1day, 1hour, 1min, 1sec)
+        :return:
+        """
+        data_dict = json.loads('{"extended_time": "' + duration + '"}')
+        response = requests.post('{}/v2/sandboxes/{}/extend'.format(self._server_url, sandbox_id),
+                                 data=json.dumps(data_dict), headers=self._headers)
+        if response.ok:
+            return json.loads(response.content)
+        return response.reason
+
+    def get_sandbox_output(self, sandbox_id):
+        """Get list of sandbox output
+        :param str sandbox_id: Sandbox id
+        :return:
+        """
+        response = requests.get('{}/v2/sandboxes/{}/{}'.format(self._server_url, sandbox_id, 'output'),
+                                headers=self._headers)
+        if response.ok:
+            return json.loads(response.content)
+        return response.reason
 
     def stop_sandbox(self, sandbox_id):
         """Stop the sandbox given sandbox id
         :param sandbox_id: Sandbox id
-        :return: True if success, False if not
+        :return:
         """
+        response = requests.post('{}/v2/sandboxes/{}/stop'.format(self._server_url, sandbox_id), headers=self._headers)
+        if response.ok:
+            return json.loads(response.content)
+        return response.reason
 
-        url_str = '{}{}{}/{}'.format(self.server_address, '/v1/sandboxes/', sandbox_id, 'stop')
-        response = self._request_and_parse('post', url_str)
-        return response.ok
 
-    def stop_sandboxes_by_name(self, sandbox_name):
-        """Stop all the sandboxes with the given sandbox name
-        :param sandbox_name: Sandbox name
-        :return: True if success, False if not
-        """
-        sandbox_ids = self.get_sandbox_ids(sandbox_name)
-        for sandbox_id in sandbox_ids:
-            self.stop_sandbox(sandbox_id)
+usage = """
+    bp_name = 'Environment1'
+    bp_id = '9a3ad040-14ff-4078-9b0a-6ce7986daaaa'
+    sb_duration = 'PT10M'
+
+    sb_cmd = 'blueprint_power_cycle'
+    sb_cmd_params = {"params": [{"name": "WaitTime", "value": "1"}], "printOutput": True}
+    sb_component = 'Demo Resource 1'
+    sb_component_cmd = 'Hello'
+    sb_comp_cmd_params = {"params": [{"name": "Duration", "value": "Sandbox tester"}], "printOutput": True}
+
+    sandbox_api = SandboxAPI('localhost', 'admin', 'admin', 'Global')
+    r = sandbox_api.get_blueprints()
+    print(r)
+    r = sandbox_api.get_blueprint_details(bp_name)
+    print(r)
+    r = sandbox_api.get_blueprint_details(bp_id)
+    print(r)
+    r = sandbox_api.start_sandbox(bp_name, sb_duration)
+    print(r)
+    sb_id = r['id']
+    r = sandbox_api.get_sandboxes()
+    print(r)
+    r = sandbox_api.get_sandbox_details(sb_id)
+    print(r)
+    r = sandbox_api.get_sandbox_commands(sb_id)
+    print(r)
+    r = sandbox_api.get_sandbox_command_details(sb_id, 'Setup')
+    print(r)
+    r = sandbox_api.sandbox_command_start(sb_id, sb_cmd, sb_cmd_params)
+    print(r)
+    r = sandbox_api.get_sandbox_components(sb_id)
+    print(r)
+    comp_id = [c.get('id') for c in r if c.get('name') == sb_component][0]
+
+    r = sandbox_api.get_sandbox_component_details(sb_id, comp_id)
+    print(r)
+    r = sandbox_api.get_sandbox_component_commands(sb_id, comp_id)
+    print(r)
+    r = sandbox_api.get_sandbox_component_command_details(sb_id, comp_id, sb_component_cmd)
+    print(r)
+    r = sandbox_api.sandbox_component_command_start(
+        sb_id, comp_id, sb_component_cmd,
+        params=sb_comp_cmd_params)
+    print(r)
+    r = sandbox_api.extend_sandbox(sb_id, sb_duration)
+    print(r)
+    r = sandbox_api.get_sandbox_activity(sb_id)
+    print(r)
+    r = sandbox_api.get_sandbox_output(sb_id)
+    print(r)
+    print(sandbox_api.stop_sandbox(sb_id))
+"""
 
 
 def main():
-    usage = """Usage:
-    # Init vars
-    blueprint_name = 'Sandbox Python API Test'
-    sandbox_name = 'Sandbox Python API Test'
-    config_file = 'quali_config.json'
+    bp_name = 'Environment1'
+    bp_id = '9a3ad040-14ff-4078-9b0a-6ce7986daaaa'
+    sb_duration = 'PT10M'
 
-    my_sandbox = Sandbox(config_file=config_file)
+    sb_cmd = 'blueprint_power_cycle'
+    sb_cmd_params = {"params": [{"name": "WaitTime", "value": "1"}], "printOutput": True}
+    sb_component = 'Demo Resource 1'
+    sb_component_cmd = 'Hello'
+    sb_comp_cmd_params = {"params": [{"name": "Duration", "value": "Sandbox tester"}], "printOutput": True}
 
-    my_sandbox.login()
+    sandbox_api = SandboxAPI('localhost', 'admin', 'admin', 'Global')
+    r = sandbox_api.get_blueprints()
+    print(r)
+    r = sandbox_api.get_blueprint_details(bp_name)
+    print(r)
+    r = sandbox_api.get_blueprint_details(bp_id)
+    print(r)
+    r = sandbox_api.start_sandbox(bp_name, sb_duration)
+    print(r)
+    sb_id = r['id']
+    r = sandbox_api.get_sandboxes()
+    print(r)
+    r = sandbox_api.get_sandbox_details(sb_id)
+    print(r)
+    r = sandbox_api.get_sandbox_commands(sb_id)
+    print(r)
+    r = sandbox_api.get_sandbox_command_details(sb_id, 'Setup')
+    print(r)
+    r = sandbox_api.sandbox_command_start(sb_id, sb_cmd, sb_cmd_params)
+    print(r)
+    r = sandbox_api.get_sandbox_components(sb_id)
+    print(r)
+    comp_id = [c.get('id') for c in r if c.get('name') == sb_component][0]
 
-    print my_sandbox.get_blueprints()
-    blueprint_id = my_sandbox.get_blueprint_id(blueprint_name=blueprint_name)
-    print "Blueprint Id:", blueprint_id
-    print my_sandbox.get_blueprint_details(blueprint_id=blueprint_id)
-    print my_sandbox.get_blueprint_details_by_name(blueprint_name=blueprint_name)
-
-    print my_sandbox.start_sandbox(blueprint_id=blueprint_id, duration='20', sandbox_name='')
-    print my_sandbox.start_sandbox_by_name(blueprint_name=blueprint_name, duration='20', sandbox_name='')
-    print my_sandbox.get_sandboxes()
-    sandbox_id = my_sandbox.get_sandbox_ids(sandbox_name=sandbox_name)
-    print sandbox_id
-    print my_sandbox.get_sandbox_details(sandbox_id=sandbox_id[0])
-    print my_sandbox.get_sandboxes_details_by_name(sandbox_name=sandbox_name)
-    print my_sandbox.stop_sandbox(sandbox_id=sandbox_id[0])
-    print my_sandbox.stop_sandboxes_by_name(sandbox_name=sandbox_name)
-    """
-
-    print usage
+    r = sandbox_api.get_sandbox_component_details(sb_id, comp_id)
+    print(r)
+    r = sandbox_api.get_sandbox_component_commands(sb_id, comp_id)
+    print(r)
+    r = sandbox_api.get_sandbox_component_command_details(sb_id, comp_id, sb_component_cmd)
+    print(r)
+    r = sandbox_api.sandbox_component_command_start(
+        sb_id, comp_id, sb_component_cmd,
+        params=sb_comp_cmd_params)
+    print(r)
+    r = sandbox_api.extend_sandbox(sb_id, sb_duration)
+    print(r)
+    r = sandbox_api.get_sandbox_activity(sb_id)
+    print(r)
+    r = sandbox_api.get_sandbox_output(sb_id)
+    print(r)
+    print(sandbox_api.stop_sandbox(sb_id))
 
 
 if __name__ == '__main__':
+    print(usage)
     main()
-
-
-# # Contents of quali_config.json
-# {
-#   "server_name": "localhost",
-#   "server_port": "82",
-#   "username": "USERNAME",
-#   "password": "PASSWORD",
-#   "domain": "DOMAIN"
-# }

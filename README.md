@@ -1,29 +1,27 @@
-# Sandbox-API-Python
-Sandbox API Python wrapper
+CloudShell Sandbox API Wrapper
+==============================
 
-**Usage:**
-```python
-from Sandbox import Sandbox
-blueprint_name = "Sandbox Python API Test"
-sandbox_name = "Sandbox Python API Test"
-config_file = "quali_config.json"
+Installation
+*************
+::
 
-my_sandbox = Sandbox(config_file=config_file)
-my_sandbox.login()
+    pip install cloudshell_sandboxapi_wrapper
 
-my_sandbox.get_blueprints()
-blueprint_id = my_sandbox.get_blueprint_id(blueprint_name=blueprint_name)
-print "Blueprint Id:", blueprint_id
-my_sandbox.get_blueprint_details(blueprint_id=blueprint_id)
-my_sandbox.get_blueprint_details_by_name(blueprint_name=blueprint_name)
+Example Usage
+**************
+::
 
-my_sandbox.start_sandbox(blueprint_id=blueprint_id, duration='20', sandbox_name='')
-my_sandbox.start_sandbox_by_name(blueprint_name=blueprint_name, duration='20', sandbox_name='')
-my_sandbox.get_sandboxes()
-sandbox_id = my_sandbox.get_sandbox_ids(sandbox_name=sandbox_name)
-print "Sandbox Id:", sandbox_id
-my_sandbox.get_sandbox_details(sandbox_id=sandbox_id[0])
-my_sandbox.get_sandboxes_details_by_name(sandbox_name=sandbox_name)
-my_sandbox.stop_sandbox(sandbox_id=sandbox_id[0])
-my_sandbox.stop_sandboxes_by_name(sandbox_name=sandbox_name)
-```
+    from cloudshell_sandboxapi_wrapper.SandboxAPI import SandboxAPI
+    sandbox = SandboxAPI(host=SERVER_NAME, username=USERNAME, password=PASSWORD, domain=DOMAIN, port=SERVER_PORT)
+    blueprints = sandbox.get_blueprints()
+    blueprint_id = sandbox.get_blueprint_details(blueprint_id=BLUEPRINT_NAME)['id']
+    sandbox_id = sandbox.start_sandbox(BLUEPRINT_NAME, PT23H, SANDBOX_NAME)
+    sandbox.stop_sandbox(sandbox_id)
+
+|
+
+:Note:
+  Tested on cloudshell 9.3 with Python 2.7/3.7/3.8.
+  For API details, please refer to CloudShell Sandbox API help: `CloudShell Sandbox API <https://help.quali.com/Online%20Help/9.3/Api-Guide/Content/API/CS-Snbx-API-Topic.htm>`_
+
+|

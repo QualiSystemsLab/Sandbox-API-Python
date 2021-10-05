@@ -1,26 +1,35 @@
-from setuptools import setup
+from setuptools import setup, find_packages
+from typing import List
+
+def read_file(file_name: str) -> str:
+    with open(file_name) as f:
+        content = f.read().strip()
+    return content
 
 
-def readme():
-    with open('README.rst') as f:
-        return f.read()
+def lines_from_file(file_name: str) -> List[str]:
+    with open(file_name) as f:
+        lines = f.read().splitlines()
+    return lines
 
 
 setup(
     name='cloudshell_sandboxapi_wrapper',
-    version='1.0.0',
-    packages=['cloudshell_sandboxapi_wrapper'],
-    url='http://www.quali.com',
-    license='Apache 2.0',
+    description='Python client for CloudShell Sandbox REST api - consume sandboxes via CI',
+    keywords=["cloudshell", "sandbox", "api", "CI"],
+    url='https://github.com/QualiSystemsLab/Sandbox-API-Python',
     author='sadanand.s',
     author_email='sadanand.s@quali.com',
-    description='Python wrapper for CloudShell Sandbox API',
-    long_description=readme(),
+    license='Apache 2.0',
+    packages=find_packages(),
+    version=read_file("version.txt"),
+    long_description=read_file("README.rst"),
+    install_requires=lines_from_file("requirements.txt"),
+    test_requires=lines_from_file("test-requirements.txt"),
     classifiers=[
         'License :: OSI Approved :: Apache Software License',
         'Natural Language :: English',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
-    ],
-    install_requires=['requests']
+    ]
 )

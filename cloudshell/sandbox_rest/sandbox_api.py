@@ -1,18 +1,17 @@
 import json
+import time
 from typing import List
-
 import requests
 from dataclasses import dataclass, asdict
-
-
-class SandboxRestException(Exception):
-    """ General exception to raise inside Rest client class """
-    pass
+from cloudshell.sandbox_rest.exceptions import SandboxRestException, SandboxRestAuthException
 
 
 @dataclass
 class InputParam:
-    """ To model the param objects passed to sandbox / component command endpoints """
+    """
+    param objects passed to sandbox / component command endpoints
+    sandbox global inputs, commands and resource commands all follow this generic name/value convention
+    """
     name: str
     value: str
 
@@ -25,38 +24,92 @@ class SandboxRestApiClient:
 
     def __init__(self, host: str, username: str, password: str, domain='Global', port=82, is_https=False,
                  api_version="v2"):
-        """ logs into api and sets headers for future requests """
-        protocol = "https" if is_https else "http"
-        self._base_url = f"{protocol}://{host}:{port}/api"
+        """ login to api and store headers for future requests """
+        _protocol = "https" if is_https else "http"
+        self.host = host
+        self.username = username
+        self._password = password
+        self.domain = domain
+        self._base_url = f"{_protocol}://{host}:{port}/api"
         self._versioned_url = f"{self._base_url}/{api_version}"
-        self._session = requests.Session()
-        self._auth_headers = self._get_auth_headers(username, password, domain)
+        self.auth_token = self.get_token_with_credentials(username, password, domain)
+        self._auth_headers = self._build_auth_headers(self.auth_token)
 
-    def _get_auth_headers(self, user_name: str, password: str, domain: str):
+    # CONTEXT MANAGER METHODS
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        # invalidate stored api token on exit
+        self.invalidate_auth()
+
+    @staticmethod
+    def _build_auth_headers(login_token: str) -> dict:
         """
-        Get token from login response, then place token into auth headers on class
+        interpolate token into auth_headers dict
         """
-        login_res = requests.put(url=f"{self._base_url}/login",
-                                 data=json.dumps({"username": user_name, "password": password, "domain": domain}),
-                                 headers={"Content-Type": "application/json"})
-
-        if not login_res.ok:
-            raise SandboxRestException(self._format_err(login_res, "Failed Login"))
-
-        login_token = login_res.text[1:-1]
-
         auth_headers = {
             'Authorization': f'Basic {login_token}',
             'Content-Type': 'application/json'
         }
         return auth_headers
 
-    @staticmethod
-    def _format_err(response: requests.Response, custom_err_msg="Failed Api Call"):
-        err_msg = f"Response Code: {response.status_code}, Reason: {response.reason}"
-        if custom_err_msg:
-            err_msg = f"{custom_err_msg}. {err_msg}"
-        return err_msg
+    def refresh_auth(self):
+        self.auth_token = self.get_token_with_credentials(self.username, self._password, self.domain)
+        self._auth_headers = self._build_auth_headers(self.auth_token)
+
+    def invalidate_auth(self):
+        self.invalidate_target_token(self.auth_token)
+        self._auth_headers = None
+
+    def _validate_auth_headers(self):
+        if not self._auth_headers:
+            raise SandboxRestAuthException(f"No auth headers currently set for '{self.username}' session")
+
+    # LOGIN METHODS
+    def get_token_with_credentials(self, user_name: str, password: str, domain: str) -> str:
+        """
+       Get token from credentials - extraneous quotes stripped off token string
+       """
+        login_res = requests.put(url=f"{self._base_url}/login",
+                                 data=json.dumps({"username": user_name, "password": password, "domain": domain}),
+                                 headers={"Content-Type": "application/json"})
+
+        if not login_res.ok:
+            raise SandboxRestAuthException(self._format_err(login_res, "Failed Login"))
+
+        login_token = login_res.text[1:-1]
+        return login_token
+
+    def get_token_for_target_user(self, user_name: str) -> str:
+        """
+        Get token for target user - remove extraneous quotes
+        """
+        self._validate_auth_headers()
+        login_res = requests.post(url=f"{self._base_url}/token",
+                                  data=json.dumps({"username": user_name}),
+                                  headers=self._auth_headers)
+
+        if not login_res.ok:
+            raise SandboxRestException(self._format_err(login_res, f"Failed to get get token for user {user_name}"))
+
+        login_token = login_res.text[1:-1]
+        return login_token
+
+    def invalidate_target_token(self, token_id: str) -> None:
+        self._validate_auth_headers()
+        login_res = requests.delete(url=f"{self._base_url}/token/{token_id}",
+                                    headers=self._auth_headers)
+        if not login_res.ok:
+            raise SandboxRestException(self._format_err(login_res, "Failed to delete token"))
+
+    def _format_err(self, response: requests.Response, custom_err_msg="Failed Api Call"):
+        response_data = (f"Response: {response.status_code}, Reason: {response.reason}\n"
+                         f"Request URL: {response.request.url}\n"
+                         f"Request Headers: {response.request.headers}")
+        return (f"Sandbox API Error for User: '{self.username}', Domain: '{self.domain}'.\n"
+                f"{custom_err_msg}\n"
+                f"{response_data}")
 
     # SANDBOX POST REQUESTS
     def start_sandbox(self, blueprint_id: str, sandbox_name="", duration="PT2H0M",
@@ -65,41 +118,42 @@ class SandboxRestApiClient:
         Create a sandbox from the provided blueprint id
         Duration format must be a valid 'ISO 8601'. (e.g 'PT23H' or 'PT4H2M')
         """
-        # sandbox name will default to blueprint name if not passed
-        if not sandbox_name:
-            sandbox_name = self.get_blueprint_details(blueprint_id)['name']
+        self._validate_auth_headers()
+        url = f'{self._versioned_url}/blueprints/{blueprint_id}/start'
+        sandbox_name = sandbox_name if sandbox_name else self.get_blueprint_details(blueprint_id)['name']
 
-        data_dict = {"duration": duration, "name": sandbox_name}
-        if permitted_users:
-            data_dict['permitted_users'] = permitted_users
-        if bp_params:
-            data_dict["params"] = [asdict(x) for x in bp_params]
+        data_dict = {
+            "duration": duration,
+            "name": sandbox_name,
+            "permitted_users": permitted_users if permitted_users else [],
+            "params": [asdict(x) for x in bp_params] if bp_params else []
+        }
 
-        response = requests.post(f'{self._versioned_url}/blueprints/{blueprint_id}/start',
-                                 headers=self._auth_headers,
-                                 data=json.dumps(data_dict))
+        response = requests.post(url, headers=self._auth_headers, data=json.dumps(data_dict))
         if not response.ok:
-            err_msg = self._format_err(response, f"Failed to start sandbox from blueprint '{blueprint_id}'")
+            custom_msg = f"Failed to start '{blueprint_id}'. "
+            if 400 <= response.status_code < 500:
+                custom_msg += "Ensure blueprint is 'Public' and in correct domain."
+            if response.status_code >= 500:
+                custom_msg += "Internal Server 500 Error During Request."
+            err_msg = self._format_err(response, custom_msg)
             raise SandboxRestException(err_msg)
         return response.json()
 
     def start_persistent_sandbox(self, blueprint_id: str, sandbox_name="", bp_params: List[InputParam] = None,
                                  permitted_users: List[str] = None):
         """ Create a persistent sandbox from the provided blueprint id """
+        self._validate_auth_headers()
+        url = f'{self._versioned_url}/blueprints/{blueprint_id}/start-persistent'
 
-        # sandbox name will default to blueprint name if not passed
-        if not sandbox_name:
-            sandbox_name = self.get_blueprint_details(blueprint_id)['name']
+        sandbox_name = sandbox_name if sandbox_name else self.get_blueprint_details(blueprint_id)['name']
+        data_dict = {
+            "name": sandbox_name,
+            "permitted_users": permitted_users if permitted_users else [],
+            "params": [asdict(x) for x in bp_params] if bp_params else []
+        }
 
-        data_dict = {"name": sandbox_name}
-        if permitted_users:
-            data_dict['permitted_users'] = permitted_users
-        if bp_params:
-            data_dict["params"] = [asdict(x) for x in bp_params]
-
-        response = requests.post(f'{self._versioned_url}/blueprints/{blueprint_id}/start-persistent',
-                                 headers=self._auth_headers,
-                                 data=json.dumps(data_dict))
+        response = requests.post(url, headers=self._auth_headers, data=json.dumps(data_dict))
         if not response.ok:
             err_msg = self._format_err(response, f"Failed to start persistent sandbox from blueprint '{blueprint_id}'")
             raise SandboxRestException(err_msg)
@@ -108,6 +162,7 @@ class SandboxRestApiClient:
     def run_sandbox_command(self, sandbox_id: str, command_name: str, params: List[InputParam] = None,
                             print_output=True):
         """ Run a sandbox level command """
+        self._validate_auth_headers()
         url = f'{self._versioned_url}/sandboxes/{sandbox_id}/commands/{command_name}/start'
         data_dict = {"printOutput": print_output}
         params = [asdict(x) for x in params] if params else []
@@ -120,13 +175,15 @@ class SandboxRestApiClient:
     def run_component_command(self, sandbox_id: str, component_id: str, command_name: str,
                               params: List[InputParam] = None, print_output: bool = True):
         """ Start a command on sandbox component """
+        self._validate_auth_headers()
         url = f'{self._versioned_url}/sandboxes/{sandbox_id}/components/{component_id}/commands/{command_name}/start'
         data_dict = {"printOutput": print_output}
         params = [asdict(x) for x in params] if params else []
         data_dict["params"] = params
         response = requests.post(url, data=json.dumps(data_dict), headers=self._auth_headers)
         if not response.ok:
-            raise SandboxRestException(self._format_err(response, f"failed to start component command '{command_name}'"))
+            raise SandboxRestException(
+                self._format_err(response, f"failed to start component command '{command_name}'"))
         return response.json()
 
     def extend_sandbox(self, sandbox_id: str, duration: str):
@@ -135,6 +192,7 @@ class SandboxRestApiClient:
         :param str duration: duration in ISO 8601 format (P1Y1M1DT1H1M1S = 1year, 1month, 1day, 1hour, 1min, 1sec)
         :return:
         """
+        self._validate_auth_headers()
         data_dict = {"extended_time": duration}
         response = requests.post(f'{self._base_url}/sandboxes/{sandbox_id}/extend',
                                  data=json.dumps(data_dict),
@@ -145,6 +203,7 @@ class SandboxRestApiClient:
 
     def stop_sandbox(self, sandbox_id: str):
         """ Stop the sandbox given sandbox id """
+        self._validate_auth_headers()
         response = requests.post(f'{self._versioned_url}/sandboxes/{sandbox_id}/stop', headers=self._auth_headers)
         if not response.ok:
             raise SandboxRestException(self._format_err(response, f"Failed to stop sandbox '{sandbox_id}'"))
@@ -152,20 +211,24 @@ class SandboxRestApiClient:
 
     # SANDBOX GET REQUESTS
     def get_sandboxes(self, show_historic=False):
-        """Get list of sandboxes
-        :return:
-        """
-        params = {"show_historic": show_historic}
-        response = requests.get(f'{self._versioned_url}/sandboxes', headers=self._auth_headers, params=params)
+        """ Get list of sandboxes """
+        self._validate_auth_headers()
+        url = f'{self._versioned_url}/sandboxes'
+        params = {"show_historic": "true" if show_historic else "false"}
+        response = requests.get(url, headers=self._auth_headers, params=params)
         if not response.ok:
-            raise SandboxRestException(self._format_err(response, f"Failed to get sandbox list"))
+            err_msg = self._format_err(response, f"Failed to get sandbox list")
+            raise SandboxRestException(err_msg)
         return response.json()
 
     def get_sandbox_details(self, sandbox_id: str):
         """ Get details of the given sandbox id """
-        response = requests.get(f'{self._versioned_url}/sandboxes/{sandbox_id}', headers=self._auth_headers)
+        self._validate_auth_headers()
+        url = f'{self._versioned_url}/sandboxes/{sandbox_id}'
+        response = requests.get(url, headers=self._auth_headers)
         if not response.ok:
-            raise SandboxRestException(self._format_err(response, f"Failed to get sandbox details for '{sandbox_id}'"))
+            exc_msg = self._format_err(response, f"Failed to get sandbox details for '{sandbox_id}'")
+            raise SandboxRestException(exc_msg)
         return response.json()
 
     def get_sandbox_activity(self, sandbox_id: str, error_only=False, since="", from_event_id: int = None,
@@ -177,6 +240,7 @@ class SandboxRestApiClient:
         'tail' - how many of the last entries you want to pull
         'error_only' - to filter for error events only
         """
+        self._validate_auth_headers()
         url = f'{self._versioned_url}/sandboxes/{sandbox_id}/activity'
         params = {}
 
@@ -200,6 +264,7 @@ class SandboxRestApiClient:
 
     def get_sandbox_commands(self, sandbox_id: str):
         """ Get list of sandbox commands """
+        self._validate_auth_headers()
         response = requests.get(f'{self._versioned_url}/sandboxes/{sandbox_id}/commands', headers=self._auth_headers)
         if not response.ok:
             raise SandboxRestException(self._format_err(response, f"Failed to get sandbox commands for '{sandbox_id}'"))
@@ -207,6 +272,7 @@ class SandboxRestApiClient:
 
     def get_sandbox_command_details(self, sandbox_id: str, command_name: str):
         """ Get details of specific sandbox command """
+        self._validate_auth_headers()
         response = requests.get(f'{self._versioned_url}/sandboxes/{sandbox_id}/commands/{command_name}',
                                 headers=self._auth_headers)
         if not response.ok:
@@ -217,6 +283,7 @@ class SandboxRestApiClient:
 
     def get_sandbox_components(self, sandbox_id: str):
         """ Get list of sandbox components """
+        self._validate_auth_headers()
         response = requests.get(f'{self._versioned_url}/sandboxes/{sandbox_id}/components', headers=self._auth_headers)
         if not response.ok:
             err_msg = self._format_err(response, f"Failed to get sandbox components details for '{sandbox_id}'")
@@ -225,6 +292,7 @@ class SandboxRestApiClient:
 
     def get_sandbox_component_details(self, sandbox_id: str, component_id: str):
         """ Get details of components in sandbox """
+        self._validate_auth_headers()
         response = requests.get(f'{self._versioned_url}/sandboxes/{sandbox_id}/components/{component_id}',
                                 headers=self._auth_headers)
         if not response.ok:
@@ -236,6 +304,7 @@ class SandboxRestApiClient:
 
     def get_sandbox_component_commands(self, sandbox_id: str, component_id: str):
         """ Get list of commands for a particular component in sandbox """
+        self._validate_auth_headers()
         response = requests.get(f'{self._versioned_url}/sandboxes/{sandbox_id}/components/{component_id}/commands',
                                 headers=self._auth_headers)
         if not response.ok:
@@ -247,6 +316,7 @@ class SandboxRestApiClient:
 
     def get_sandbox_component_command_details(self, sandbox_id: str, component_id: str, command: str):
         """ Get details of a command of sandbox component """
+        self._validate_auth_headers()
         response = requests.get(
             f'{self._versioned_url}/sandboxes/{sandbox_id}/components/{component_id}/commands/{command}',
             headers=self._auth_headers)
@@ -259,6 +329,7 @@ class SandboxRestApiClient:
 
     def get_sandbox_instructions(self, sandbox_id: str):
         """ pull the instruction text of sandbox """
+        self._validate_auth_headers()
         response = requests.get(f'{self._versioned_url}/sandboxes/{sandbox_id}/instructions',
                                 headers=self._auth_headers)
         if not response.ok:
@@ -269,6 +340,7 @@ class SandboxRestApiClient:
 
     def get_sandbox_output(self, sandbox_id: str, tail: int = None, from_entry_id: int = None, since: str = None):
         """ Get list of sandbox output """
+        self._validate_auth_headers()
         url = f'{self._versioned_url}/sandboxes/{sandbox_id}/instructions'
         params = {}
         if tail:
@@ -292,6 +364,7 @@ class SandboxRestApiClient:
     # BLUEPRINT GET REQUESTS
     def get_blueprints(self):
         """ Get list of blueprints """
+        self._validate_auth_headers()
         response = requests.get(f'{self._versioned_url}/blueprints', headers=self._auth_headers)
         if not response.ok:
             raise SandboxRestException(self._format_err(response, "Failed to get blueprints"))
@@ -302,7 +375,8 @@ class SandboxRestApiClient:
         Get details of a specific blueprint
         Can pass either blueprint name OR blueprint ID
         """
-        response = requests.get(f"{self._versioned_url}/blueprints/'{blueprint_id}'")
+        self._validate_auth_headers()
+        response = requests.get(f"{self._versioned_url}/blueprints/'{blueprint_id}'", headers=self._auth_headers)
         if not response.ok:
             raise SandboxRestException(
                 self._format_err(response, f"Failed to get blueprint data for '{blueprint_id}'"))
@@ -310,6 +384,7 @@ class SandboxRestApiClient:
 
     # EXECUTIONS
     def get_execution_details(self, execution_id: str):
+        self._validate_auth_headers()
         response = requests.get(f"{self._versioned_url}/executions/{execution_id}", headers=self._auth_headers)
         if not response.ok:
             raise SandboxRestException(
@@ -317,6 +392,7 @@ class SandboxRestApiClient:
         return response.json()
 
     def delete_execution(self, execution_id: str):
+        self._validate_auth_headers()
         response = requests.delete(f"{self._versioned_url}/executions/{execution_id}", headers=self._auth_headers)
         if not response.ok:
             raise SandboxRestException(
@@ -325,6 +401,19 @@ class SandboxRestApiClient:
 
 
 if __name__ == '__main__':
-    api = SandboxRestApiClient("localhost", "admin", "admin")
-    bps = api.get_blueprints()
+    API_SERVER = "localhost"
+    ADMIN_USER = "admin"
+    ADMIN_PASS = "admin"
+
+    admin_api = SandboxRestApiClient(host=API_SERVER, username=ADMIN_USER, password=ADMIN_PASS)
+    with admin_api:
+        # sample api call with admin user session to get all sandboxes
+        all_sandboxes = admin_api.get_sandboxes()
+        print("== List of sandboxes pulled by Admin ===")
+        print(json.dumps(all_sandboxes, indent=4))
+
+    admin_api.refresh_auth()
+    all_sandboxes = admin_api.get_sandboxes()
     pass
+
+

@@ -3,7 +3,21 @@ import time
 from typing import List
 import requests
 from dataclasses import dataclass, asdict
-from cloudshell.sandbox_rest.exceptions import SandboxRestException, SandboxRestAuthException
+
+
+class SandboxRestException(Exception):
+    """ General exception to raise inside Rest client class """
+    pass
+
+
+class SandboxRestAuthException(Exception):
+    """ Failed auth actions """
+    pass
+
+
+class SandboxRestInitException(ValueError):
+    """ Failed auth actions """
+    pass
 
 
 @dataclass
@@ -16,7 +30,7 @@ class InputParam:
     value: str
 
 
-class SandboxRestApiClient:
+class SandboxRestApiSession:
     """
     Python wrapper for CloudShell Sandbox API
     View http://<API_SERVER>/api/v2/explore to see schemas of return json values
@@ -207,7 +221,6 @@ class SandboxRestApiClient:
         response = requests.post(f'{self._versioned_url}/sandboxes/{sandbox_id}/stop', headers=self._auth_headers)
         if not response.ok:
             raise SandboxRestException(self._format_err(response, f"Failed to stop sandbox '{sandbox_id}'"))
-        return response.json()
 
     # SANDBOX GET REQUESTS
     def get_sandboxes(self, show_historic=False):
@@ -405,15 +418,17 @@ if __name__ == '__main__':
     ADMIN_USER = "admin"
     ADMIN_PASS = "admin"
 
-    admin_api = SandboxRestApiClient(host=API_SERVER, username=ADMIN_USER, password=ADMIN_PASS)
+    admin_api = SandboxRestApiSession(host=API_SERVER, username=ADMIN_USER, password=ADMIN_PASS)
     with admin_api:
         # sample api call with admin user session to get all sandboxes
-        all_sandboxes = admin_api.get_sandboxes()
-        print("== List of sandboxes pulled by Admin ===")
-        print(json.dumps(all_sandboxes, indent=4))
+        # all_sandboxes = admin_api.get_sandboxes()
+        # print("== List of sandboxes pulled by Admin ===")
+        # print(json.dumps(all_sandboxes, indent=4))
 
-    admin_api.refresh_auth()
-    all_sandboxes = admin_api.get_sandboxes()
-    pass
+        sb_res = admin_api.start_sandbox(blueprint_id="rest test", sandbox_name="rest test")
+        print(sb_res["state"])
+        time.sleep(4)
+
+
 
 

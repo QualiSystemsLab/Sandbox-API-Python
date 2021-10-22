@@ -1,19 +1,28 @@
-from cloudshell.sandbox_rest.sandbox_api import SandboxRestApiSession, InputParam
-from cloudshell.sandbox_rest.helpers.polling_helpers import poll_sandbox_setup, poll_sandbox_teardown, \
-    poll_execution_for_completion, SandboxStates, SANDBOX_SETUP_STATES, SANDBOX_ACTIVE_STATES
-from cloudshell.sandbox_rest.sandbox_components import SandboxRestComponents
 import json
-from typing import List
 from timeit import default_timer
+from typing import List
+
+from cloudshell.sandbox_rest.helpers.polling_helpers import (
+    SANDBOX_ACTIVE_STATES,
+    SANDBOX_SETUP_STATES,
+    SandboxStates,
+    poll_execution_for_completion,
+    poll_sandbox_setup,
+    poll_sandbox_teardown,
+)
+from cloudshell.sandbox_rest.sandbox_api import InputParam, SandboxRestApiSession
+from cloudshell.sandbox_rest.sandbox_components import SandboxRestComponents
 
 
 class SandboxSetupError(Exception):
     """ When sandbox has error during setup """
+
     pass
 
 
 class SandboxTeardownError(Exception):
     """ When sandbox has error during setup """
+
     pass
 
 
@@ -64,20 +73,27 @@ class SandboxRestController:
         if not self.disable_prints:
             print(message)
 
-    def start_sandbox_and_poll(self, blueprint_id: str, sandbox_name="", duration="PT1H30M",
-                               bp_params: List[InputParam] = None, permitted_users: List[str] = None,
-                               max_polling_minutes=30, raise_setup_exception=True) -> dict:
+    def start_sandbox_and_poll(
+        self,
+        blueprint_id: str,
+        sandbox_name="",
+        duration="PT1H30M",
+        bp_params: List[InputParam] = None,
+        permitted_users: List[str] = None,
+        max_polling_minutes=30,
+        raise_setup_exception=True,
+    ) -> dict:
         """ Start sandbox, poll for result, get back sandbox info """
         if self.sandbox_id:
-            raise ValueError(f"Sandbox already has id '{self.sandbox_id}'.\n"
-                             f"Start blueprint with new sandbox controller instance")
+            raise ValueError(
+                f"Sandbox already has id '{self.sandbox_id}'.\n" f"Start blueprint with new sandbox controller instance"
+            )
 
         self._print(f"Starting blueprint {blueprint_id}")
         start = default_timer()
         start_response = self.api.start_sandbox(blueprint_id, sandbox_name, duration, bp_params, permitted_users)
         self.sandbox_id = start_response["id"]
-        sandbox_details = poll_sandbox_setup(self.api, self.sandbox_id, max_polling_minutes,
-                                             polling_frequency_seconds=30)
+        sandbox_details = poll_sandbox_setup(self.api, self.sandbox_id, max_polling_minutes, polling_frequency_seconds=30)
         self.update_components()
         sandbox_state = sandbox_details["state"]
         stage = sandbox_details["setup_stage"]
@@ -97,8 +113,10 @@ class SandboxRestController:
                 self._print(err_msg)
 
             if raise_setup_exception:
-                err_msg = (f"Sandbox '{name}' Error during SETUP. See events for details.\n"
-                           f"Stage: '{stage}'. State '{sandbox_state}'. Sandbox ID: '{self.sandbox_id}'")
+                err_msg = (
+                    f"Sandbox '{name}' Error during SETUP. See events for details.\n"
+                    f"Stage: '{stage}'. State '{sandbox_state}'. Sandbox ID: '{self.sandbox_id}'"
+                )
                 raise SandboxSetupError(err_msg)
 
         total_minutes = (default_timer() - start) / 60
@@ -112,8 +130,7 @@ class SandboxRestController:
         last_activity_id = self.api.get_sandbox_activity(self.sandbox_id, tail=1)["events"]["id"]
         start = default_timer()
         self.api.stop_sandbox(sandbox_id)
-        sandbox_details = poll_sandbox_teardown(self.api, sandbox_id, max_polling_minutes,
-                                                polling_frequency_seconds=30)
+        sandbox_details = poll_sandbox_teardown(self.api, sandbox_id, max_polling_minutes, polling_frequency_seconds=30)
         self.update_components()
         sandbox_state = sandbox_details["state"]
         stage = sandbox_details["setup_stage"]
@@ -123,18 +140,19 @@ class SandboxRestController:
             self.sandbox_ended = True
 
         tail_error_count = 5
-        tailed_errors = self.api.get_sandbox_activity(sandbox_id,
-                                                      error_only=True,
-                                                      from_event_id=last_activity_id + 1,
-                                                      tail=tail_error_count)["events"]
+        tailed_errors = self.api.get_sandbox_activity(
+            sandbox_id, error_only=True, from_event_id=last_activity_id + 1, tail=tail_error_count
+        )["events"]
         if tailed_errors:
             self.sandbox_ended = True
             self.teardown_errors = tailed_errors
             self._print(f"=== Last {tail_error_count} Errors ===\n{json.dumps(tailed_errors, indent=4)}")
 
             if raise_teardown_exception:
-                err_msg = (f"Sandbox '{name}' Error during SETUP.\n"
-                           f"Stage: '{stage}'. State '{sandbox_state}'. Sandbox ID: '{sandbox_id}'")
+                err_msg = (
+                    f"Sandbox '{name}' Error during SETUP.\n"
+                    f"Stage: '{stage}'. State '{sandbox_state}'. Sandbox ID: '{sandbox_id}'"
+                )
                 raise SandboxTeardownError(err_msg)
 
         total_minutes = (default_timer() - start) / 60
@@ -142,6 +160,7 @@ class SandboxRestController:
         return sandbox_details
 
     def rerun_setup(self):
+        self
         pass
 
     def run_sandbox_command_and_poll(self):

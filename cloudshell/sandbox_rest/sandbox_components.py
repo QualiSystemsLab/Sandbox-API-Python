@@ -1,6 +1,6 @@
 import json
-from typing import List
 from enum import Enum
+from typing import List
 
 
 class ComponentTypes(Enum):
@@ -26,7 +26,7 @@ class SandboxRestComponents:
         """
         if instantiated with components then populate lists
         if not, then call "refresh_components" after getting data from sandbox
-         """
+        """
         self.all_components = components if components else []
         self.services = []
         self.resources = []
@@ -40,9 +40,11 @@ class SandboxRestComponents:
         return [component for component in self.all_components if component["type"] == component_type]
 
     def _filter_app_by_lifecycle(self, lifecycle_type):
-        return [component for component in self.all_components
-                if component["type"] == ComponentTypes.app_type.value
-                and component["app_lifecyle"] == lifecycle_type]
+        return [
+            component
+            for component in self.all_components
+            if component["type"] == ComponentTypes.app_type.value and component["app_lifecyle"] == lifecycle_type
+        ]
 
     def _sort_components(self) -> None:
         """ sort stored components into separate lists """
@@ -94,5 +96,7 @@ class SandboxRestComponents:
             return
         attrs = components[0].get("attributes")
         if not attrs:
-            raise Exception("'attributes' member not found. Must pass in Full info components.\n"
-                            f"components data passed:\n{json.dumps(components, indent=4)}")
+            raise Exception(
+                "'attributes' member not found. Must pass in Full info components.\n"
+                f"components data passed:\n{json.dumps(components, indent=4)}"
+            )

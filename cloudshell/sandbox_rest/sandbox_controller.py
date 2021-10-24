@@ -12,7 +12,7 @@ from cloudshell.sandbox_rest.helpers.polling_helpers import (
 )
 from cloudshell.sandbox_rest.sandbox_api import InputParam, SandboxRestApiSession
 from cloudshell.sandbox_rest.sandbox_components import SandboxRestComponents
-
+from cloudshell.logger.qs_logger import get_qs_logger
 
 class SandboxSetupError(Exception):
     """ When sandbox has error during setup """

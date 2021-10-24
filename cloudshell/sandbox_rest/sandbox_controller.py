@@ -2,6 +2,7 @@ import json
 from timeit import default_timer
 from typing import List
 
+from cloudshell.logger.qs_logger import get_qs_logger
 from cloudshell.sandbox_rest.helpers.polling_helpers import (
     SANDBOX_ACTIVE_STATES,
     SANDBOX_SETUP_STATES,
@@ -12,7 +13,7 @@ from cloudshell.sandbox_rest.helpers.polling_helpers import (
 )
 from cloudshell.sandbox_rest.sandbox_api import InputParam, SandboxRestApiSession
 from cloudshell.sandbox_rest.sandbox_components import SandboxRestComponents
-from cloudshell.logger.qs_logger import get_qs_logger
+
 
 class SandboxSetupError(Exception):
     """ When sandbox has error during setup """

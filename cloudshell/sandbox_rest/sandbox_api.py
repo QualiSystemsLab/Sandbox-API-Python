@@ -1,6 +1,7 @@
 import json
 from dataclasses import asdict, dataclass
 from typing import List
+
 import requests
 
 
@@ -433,6 +434,7 @@ if __name__ == "__main__":
     # admin_api = SandboxRestApiSession(host="localhost", username="admin", password="admin", domain=TARGET_DOMAIN)
     admin_api = SandboxRestApiSession(host="localhost", username="admin", password="admin", domain=TARGET_DOMAIN)
     from cloudshell.api.cloudshell_api import CloudShellAPISession
+
     with admin_api:
         all_sandboxes = admin_api.get_sandboxes()
         print(f"Sandbox count pulled by system admin: {len(all_sandboxes)}")

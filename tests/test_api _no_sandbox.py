@@ -1,14 +1,12 @@
 """
-Test the api methods that do not require a live sandbox
+Functionally test the api methods that do not require a live sandbox
 - get all blueprints
 - get all sandboxes
 - get blueprint by id
 - get token + delete token
 """
-from common import DEFAULT_BLUEPRINT_TEMPLATE, pretty_print_response
-from common_fixtures import admin_session
-
 from cloudshell.sandbox_rest.sandbox_api import SandboxRestApiSession
+from env_settings import DEFAULT_BLUEPRINT_TEMPLATE
 
 
 def test_get_sandboxes(admin_session: SandboxRestApiSession):

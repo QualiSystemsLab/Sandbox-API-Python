@@ -1,3 +1,4 @@
 .idea/
 .pytest_cache/
 *.egg
+tests/.env

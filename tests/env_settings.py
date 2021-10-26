@@ -6,6 +6,7 @@ CLOUDSHELL_SERVER=localhost
 """
 
 import os
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -19,4 +20,3 @@ CLOUDSHELL_SERVER = os.environ.get("CLOUDSHELL_SERVER")
 DUT_RESOURCE = "DUT_1"
 DEFAULT_BLUEPRINT_TEMPLATE = "CloudShell Sandbox Template"
 HEALTH_CHECK_COMMAND = "health_check"
-

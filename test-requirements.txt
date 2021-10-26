@@ -1,2 +1,4 @@
 pytest
 python-dotenv
+flake8
+pylint

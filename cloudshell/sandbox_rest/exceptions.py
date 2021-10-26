@@ -3,6 +3,7 @@ from requests import Response
 
 class SandboxRestException(Exception):
     """ Base Exception Class inside Rest client class """
+
     def __init__(self, msg: str, response: Response = None):
         self.msg = msg
         self.response = response
@@ -18,11 +19,14 @@ class SandboxRestException(Exception):
 
     @staticmethod
     def _format_response_msg(response: Response):
-        return (f"Response: {response.status_code}, Reason: {response.reason}\n"
-                f"Request URL: {response.request.url}\n"
-                f"Request Headers: {response.request.headers}")
+        return (
+            f"Response: {response.status_code}, Reason: {response.reason}\n"
+            f"Request URL: {response.request.url}\n"
+            f"Request Headers: {response.request.headers}"
+        )
 
 
 class SandboxRestAuthException(SandboxRestException):
     """ Failed auth action """
+
     pass

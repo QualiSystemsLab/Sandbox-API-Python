@@ -2,16 +2,18 @@
 Test the api methods that require a live sandbox against default
 - start sandbox
 """
-from cloudshell.sandbox_rest.sandbox_api import SandboxRestApiSession
-from env_settings import DEFAULT_BLUEPRINT_TEMPLATE
 import pytest
+from env_settings import DEFAULT_BLUEPRINT_TEMPLATE
+
+from cloudshell.sandbox_rest.sandbox_api import SandboxRestApiSession
 
 
 @pytest.fixture(scope="module")
 def sandbox_id(admin_session: SandboxRestApiSession):
     # start sandbox
-    start_res = admin_session.start_sandbox(blueprint_id=DEFAULT_BLUEPRINT_TEMPLATE,
-                                            sandbox_name="Pytest empty blueprint test")
+    start_res = admin_session.start_sandbox(
+        blueprint_id=DEFAULT_BLUEPRINT_TEMPLATE, sandbox_name="Pytest empty blueprint test"
+    )
     sandbox_id = start_res["id"]
     print(f"Sandbox started: {sandbox_id}")
     yield sandbox_id
@@ -39,8 +41,7 @@ def test_get_sandbox_commands(admin_session, sandbox_id):
     sb_commands = admin_session.get_sandbox_commands(sandbox_id)
     print(f"Sandbox commands: {[x['name'] for x in sb_commands]}")
     first_sb_command = admin_session.get_sandbox_command_details(sandbox_id, sb_commands[0]["name"])
-    print(f"SB command name: {first_sb_command['name']}\n"
-          f"description: {first_sb_command['description']}")
+    print(f"SB command name: {first_sb_command['name']}\n" f"description: {first_sb_command['description']}")
 
 
 def test_get_sandbox_events(admin_session, sandbox_id):
@@ -63,5 +64,3 @@ def test_get_instructions(admin_session, sandbox_id):
 def test_extend_sandbox(admin_session, sandbox_id):
     extend_response = admin_session.extend_sandbox(sandbox_id, "PT0H10M")
     print(f"extended sandbox. Remaining time: {extend_response['remaining_time']}")
-
-

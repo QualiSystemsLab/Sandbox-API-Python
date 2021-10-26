@@ -2,6 +2,7 @@ import time
 
 import pytest
 from env_settings import *
+
 from cloudshell.sandbox_rest.sandbox_api import SandboxRestApiSession
 
 
@@ -11,4 +12,3 @@ def admin_session() -> SandboxRestApiSession:
         yield api
         time.sleep(2)
         print("admin session token revoked")
-

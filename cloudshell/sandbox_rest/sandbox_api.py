@@ -1,8 +1,10 @@
 import json
 from dataclasses import asdict, dataclass
 from typing import List
+
 import requests
-from cloudshell.sandbox_rest.exceptions import SandboxRestException, SandboxRestAuthException
+
+from cloudshell.sandbox_rest.exceptions import SandboxRestAuthException, SandboxRestException
 
 
 @dataclass
@@ -22,8 +24,9 @@ class SandboxRestApiSession:
     View http://<API_SERVER>/api/v2/explore to see schemas of return json values
     """
 
-    def __init__(self, host: str, username: str, password="", token="", domain="Global", port=82, is_https=False,
-                 api_version="v2"):
+    def __init__(
+        self, host: str, username: str, password="", token="", domain="Global", port=82, is_https=False, api_version="v2"
+    ):
         """ login to api and store headers for future requests """
         _protocol = "https" if is_https else "http"
         self._base_url = f"{_protocol}://{host}:{port}/api"
@@ -106,12 +109,12 @@ class SandboxRestApiSession:
 
     # SANDBOX POST REQUESTS
     def start_sandbox(
-            self,
-            blueprint_id: str,
-            sandbox_name="",
-            duration="PT2H0M",
-            bp_params: List[InputParam] = None,
-            permitted_users: List[str] = None,
+        self,
+        blueprint_id: str,
+        sandbox_name="",
+        duration="PT2H0M",
+        bp_params: List[InputParam] = None,
+        permitted_users: List[str] = None,
     ) -> dict:
         """
         Create a sandbox from the provided blueprint id
@@ -139,8 +142,7 @@ class SandboxRestApiSession:
         return response.json()
 
     def start_persistent_sandbox(
-            self, blueprint_id: str, sandbox_name="", bp_params: List[InputParam] = None,
-            permitted_users: List[str] = None
+        self, blueprint_id: str, sandbox_name="", bp_params: List[InputParam] = None, permitted_users: List[str] = None
     ) -> dict:
         """ Create a persistent sandbox from the provided blueprint id """
         self._validate_auth_headers()
@@ -159,8 +161,9 @@ class SandboxRestApiSession:
             raise SandboxRestException(err_msg, response)
         return response.json()
 
-    def run_sandbox_command(self, sandbox_id: str, command_name: str, params: List[InputParam] = None,
-                            print_output=True) -> dict:
+    def run_sandbox_command(
+        self, sandbox_id: str, command_name: str, params: List[InputParam] = None, print_output=True
+    ) -> dict:
         """ Run a sandbox level command """
         self._validate_auth_headers()
         url = f"{self._versioned_url}/sandboxes/{sandbox_id}/commands/{command_name}/start"
@@ -173,8 +176,7 @@ class SandboxRestApiSession:
         return response.json()
 
     def run_component_command(
-            self, sandbox_id: str, component_id: str, command_name: str, params: List[InputParam] = None,
-            print_output: bool = True
+        self, sandbox_id: str, component_id: str, command_name: str, params: List[InputParam] = None, print_output: bool = True
     ) -> dict:
         """ Start a command on sandbox component """
         self._validate_auth_headers()
@@ -231,8 +233,9 @@ class SandboxRestApiSession:
             raise SandboxRestException(exc_msg, response)
         return response.json()
 
-    def get_sandbox_activity(self, sandbox_id: str, error_only=False, since="", from_event_id: int = None,
-                             tail: int = None) -> dict:
+    def get_sandbox_activity(
+        self, sandbox_id: str, error_only=False, since="", from_event_id: int = None, tail: int = None
+    ) -> dict:
         """
         Get list of sandbox activity
         'since' - format must be a valid 'ISO 8601'. (e.g 'PT23H' or 'PT4H2M')
@@ -298,9 +301,7 @@ class SandboxRestApiSession:
         )
         if not response.ok:
             custom_err_msg = (
-                f"Failed to get sandbox component details.\n"
-                f"component id: '{component_id}'\n"
-                f"sandbox id: '{sandbox_id}'"
+                f"Failed to get sandbox component details.\n" f"component id: '{component_id}'\n" f"sandbox id: '{sandbox_id}'"
             )
             raise SandboxRestException(custom_err_msg, response)
         return response.json()
@@ -309,14 +310,12 @@ class SandboxRestApiSession:
         """ Get list of commands for a particular component in sandbox """
         self._validate_auth_headers()
         response = requests.get(
-            f"{self._versioned_url}/sandboxes/{sandbox_id}/components/{component_id}/commands",
-            headers=self._auth_headers
+            f"{self._versioned_url}/sandboxes/{sandbox_id}/components/{component_id}/commands", headers=self._auth_headers
         )
         if not response.ok:
             custom_err_msg = (
-                f"Failed to get component commands.\n"
-                f"component id: '{component_id}'\n"
-                f"sandbox id: '{sandbox_id}'")
+                f"Failed to get component commands.\n" f"component id: '{component_id}'\n" f"sandbox id: '{sandbox_id}'"
+            )
             raise SandboxRestException(custom_err_msg, response)
         return response.json()
 
@@ -328,24 +327,22 @@ class SandboxRestApiSession:
             headers=self._auth_headers,
         )
         if not response.ok:
-            custom_err_msg = (f"Failed to get command details.\n "
-                              f"component id: '{component_id}'\n"
-                              f"sandbox id: '{sandbox_id}'")
+            custom_err_msg = (
+                f"Failed to get command details.\n " f"component id: '{component_id}'\n" f"sandbox id: '{sandbox_id}'"
+            )
             raise SandboxRestException(custom_err_msg, response)
         return response.json()
 
     def get_sandbox_instructions(self, sandbox_id: str) -> str:
         """ pull the instruction text of sandbox """
         self._validate_auth_headers()
-        response = requests.get(f"{self._versioned_url}/sandboxes/{sandbox_id}/instructions",
-                                headers=self._auth_headers)
+        response = requests.get(f"{self._versioned_url}/sandboxes/{sandbox_id}/instructions", headers=self._auth_headers)
         if not response.ok:
             err_msg = f"Failed to get sandbox instructions for '{sandbox_id}'"
             raise SandboxRestException(err_msg, response)
         return response.json()
 
-    def get_sandbox_output(self, sandbox_id: str, tail: int = None, from_entry_id: int = None,
-                           since: str = None) -> dict:
+    def get_sandbox_output(self, sandbox_id: str, tail: int = None, from_entry_id: int = None, since: str = None) -> dict:
         """ Get list of sandbox output """
         self._validate_auth_headers()
         url = f"{self._versioned_url}/sandboxes/{sandbox_id}/output"

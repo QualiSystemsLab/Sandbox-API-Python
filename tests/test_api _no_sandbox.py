@@ -5,8 +5,9 @@ Functionally test the api methods that do not require a live sandbox
 - get blueprint by id
 - get token + delete token
 """
-from cloudshell.sandbox_rest.sandbox_api import SandboxRestApiSession
 from env_settings import DEFAULT_BLUEPRINT_TEMPLATE
+
+from cloudshell.sandbox_rest.sandbox_api import SandboxRestApiSession
 
 
 def test_get_sandboxes(admin_session: SandboxRestApiSession):

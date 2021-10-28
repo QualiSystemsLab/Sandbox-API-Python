@@ -25,7 +25,7 @@ class SandboxRestApiSession:
     """
 
     def __init__(
-        self, host: str, username: str, password="", token="", domain="Global", port=82, is_https=False, api_version="v2"
+        self, host: str, username="", password="", token="", domain="Global", port=82, is_https=False, api_version="v2"
     ):
         """ login to api and store headers for future requests """
         _protocol = "https" if is_https else "http"
@@ -398,3 +398,12 @@ class SandboxRestApiSession:
         if not response.ok:
             raise SandboxRestException(f"Failed to delete execution for '{execution_id}'", response)
         return response.json()
+
+
+if __name__ == "__main__":
+    admin_api = SandboxRestApiSession(host="localhost", username="admin", password="admin", domain="end_users")
+    user_token = admin_api.get_token_for_target_user("end_user")
+    user_api = SandboxRestApiSession(host="localhost", token=user_token)
+    response = user_api.start_sandbox(blueprint_id="end user bp")
+    commands = user_api.get_sandbox_command_details()
+    pass

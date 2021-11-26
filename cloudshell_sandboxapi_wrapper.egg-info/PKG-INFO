@@ -3,8 +3,8 @@ Name: cloudshell-sandboxapi-wrapper
 Version: 2.0.0
 Summary: Python client for CloudShell Sandbox REST api - consume sandboxes via CI
 Home-page: https://github.com/QualiSystemsLab/Sandbox-API-Python
-Author: sadanand.s
-Author-email: sadanand.s@quali.com
+Author: Quali
+Author-email: support@qualisystems.com
 License: Apache 2.0
 Keywords: cloudshell,sandbox,api,CI
 Platform: UNKNOWN

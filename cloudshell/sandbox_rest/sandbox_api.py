@@ -4,7 +4,8 @@ from typing import List
 
 import requests
 
-from cloudshell.sandbox_rest.exceptions import SandboxRestAuthException, SandboxRestException
+from cloudshell.sandbox_rest.exceptions import (SandboxRestAuthException,
+                                                SandboxRestException)
 
 
 @dataclass
@@ -404,8 +405,3 @@ class SandboxRestApiSession:
         response_dict = response.json()
         if not response_dict["result"] == "success":
             raise SandboxRestException(f"Failed execution deletion of id {execution_id}\n" f"Response: {response_dict}")
-
-
-if __name__ == "__main__":
-    admin_api = SandboxRestApiSession(host="localhost", username="admin", password="admin", domain="end_users")
-    user_token = admin_api.get_token_for_target_user("end_user")

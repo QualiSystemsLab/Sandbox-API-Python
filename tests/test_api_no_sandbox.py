@@ -2,9 +2,33 @@
 Test the api methods that do NOT require a blueprint
 Live Cloudshell server is still a dependency
 """
+import pytest
 from constants import DEFAULT_EMPTY_BLUEPRINT
 
 from cloudshell.sandbox_rest.sandbox_api import SandboxRestApiSession
+
+
+@pytest.fixture(scope="module")
+def api_token(admin_session: SandboxRestApiSession):
+    token = admin_session.get_token_for_target_user("admin")
+    return token
+
+
+def test_delete_token(admin_session: SandboxRestApiSession, api_token: str):
+    assert isinstance(api_token, str)
+    print(f"Token response: '{api_token}'")
+    admin_session.delete_token(api_token)
+
+
+def test_reset_session(admin_session: SandboxRestApiSession):
+    print("\ndeleting admin token...")
+    admin_session.invalidate_auth()
+    print("logging back in..")
+    admin_session.refresh_auth_from_stored_credentials()
+    print("Calling get blueprints...")
+    res = admin_session.get_blueprints()
+    assert isinstance(res, list)
+    print(f"blueprint count {len(res)}")
 
 
 def test_get_sandboxes(admin_session: SandboxRestApiSession):
@@ -24,9 +48,3 @@ def test_get_default_blueprint(admin_session: SandboxRestApiSession):
     assert isinstance(bp_res, dict)
     bp_name = bp_res["name"]
     print(f"Pulled details for '{bp_name}'")
-
-
-def test_get_and_delete_token(admin_session: SandboxRestApiSession):
-    token_res = admin_session.get_token_for_target_user("admin")
-    assert isinstance(token_res, str)
-    print(f"Token response: '{token_res}'")

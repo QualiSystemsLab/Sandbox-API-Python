@@ -10,7 +10,10 @@ from cloudshell.sandbox_rest.sandbox_api import SandboxRestApiSession
 @pytest.fixture(scope="session")
 def admin_session() -> SandboxRestApiSession:
     with SandboxRestApiSession(
-        host=CLOUDSHELL_SERVER, username=CLOUDSHELL_ADMIN_USER, password=CLOUDSHELL_ADMIN_PASSWORD, domain=CLOUDSHELL_DOMAIN
+        host=CLOUDSHELL_SERVER,
+        username=CLOUDSHELL_ADMIN_USER,
+        password=CLOUDSHELL_ADMIN_PASSWORD,
+        domain=CLOUDSHELL_DOMAIN,
     ) as api:
         yield api
         time.sleep(2)

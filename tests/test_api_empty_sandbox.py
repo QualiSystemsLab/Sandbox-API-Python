@@ -20,7 +20,9 @@ def blueprint_id(admin_session: SandboxRestApiSession, empty_blueprint):
 @pytest.fixture(scope="module")
 def sandbox_id(admin_session: SandboxRestApiSession, blueprint_id):
     # start sandbox
-    start_res = admin_session.start_sandbox(blueprint_id=blueprint_id, sandbox_name="Pytest empty blueprint test")
+    start_res = admin_session.start_sandbox(
+        blueprint_id=blueprint_id, sandbox_name="Pytest empty blueprint test"
+    )
     sandbox_id = start_res["id"]
     print(f"Sandbox started: {sandbox_id}")
     yield sandbox_id
@@ -42,7 +44,9 @@ def setup_execution_id(admin_session: SandboxRestApiSession, sandbox_id: str):
         counter += 1
 
     print("Rerunning Setup...")
-    res = admin_session.run_sandbox_command(sandbox_id=sandbox_id, command_name=BLUEPRINT_SETUP_COMMAND)
+    res = admin_session.run_sandbox_command(
+        sandbox_id=sandbox_id, command_name=BLUEPRINT_SETUP_COMMAND
+    )
     assert type(res) is dict
     print("Setup re-run execution response")
     pretty_print_response(res)
@@ -73,8 +77,13 @@ def test_get_sandbox_commands(admin_session, sandbox_id):
     commands_res = admin_session.get_sandbox_commands(sandbox_id)
     assert type(commands_res) is list
     print(f"Sandbox commands: {[x['name'] for x in commands_res]}")
-    first_sb_command = admin_session.get_sandbox_command_details(sandbox_id, commands_res[0]["name"])
-    print(f"SB command name: {first_sb_command['name']}\n" f"description: {first_sb_command['description']}")
+    first_sb_command = admin_session.get_sandbox_command_details(
+        sandbox_id, commands_res[0]["name"]
+    )
+    print(
+        f"SB command name: {first_sb_command['name']}\n"
+        f"description: {first_sb_command['description']}"
+    )
 
 
 def test_get_sandbox_events(admin_session, sandbox_id):

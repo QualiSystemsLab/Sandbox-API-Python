@@ -26,7 +26,7 @@ setup(
     packages=find_packages(),
     version=read_file("version.txt"),
     long_description=read_file("README.MD"),
-    long_description_content_type='text/markdown',
+    long_description_content_type="text/markdown",
     install_requires=lines_from_file("requirements.txt"),
     test_requires=lines_from_file("test-requirements.txt"),
     classifiers=[

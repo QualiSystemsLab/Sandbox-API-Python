@@ -23,7 +23,9 @@ def blueprint_id(admin_session: SandboxRestApiSession, dut_blueprint):
 @pytest.fixture(scope="module")
 def sandbox_id(admin_session: SandboxRestApiSession, blueprint_id):
     # start sandbox
-    start_res = admin_session.start_sandbox(blueprint_id=blueprint_id, sandbox_name="Pytest DUT blueprint test")
+    start_res = admin_session.start_sandbox(
+        blueprint_id=blueprint_id, sandbox_name="Pytest DUT blueprint test"
+    )
     sandbox_id = start_res["id"]
     print(f"Sandbox started: {sandbox_id}")
     yield sandbox_id
@@ -32,7 +34,9 @@ def sandbox_id(admin_session: SandboxRestApiSession, blueprint_id):
 
 
 @pytest.fixture(scope="module")
-def component_id(admin_session: SandboxRestApiSession, sandbox_id: str, dut_blueprint: str):
+def component_id(
+    admin_session: SandboxRestApiSession, sandbox_id: str, dut_blueprint: str
+):
     components = admin_session.get_sandbox_components(sandbox_id)
     component_filter = [x for x in components if x["component_type"] == DUT_MODEL]
     assert component_filter
@@ -40,9 +44,13 @@ def component_id(admin_session: SandboxRestApiSession, sandbox_id: str, dut_blue
 
 
 @pytest.fixture(scope="module")
-def execution_id(admin_session: SandboxRestApiSession, sandbox_id: str, component_id: str):
+def execution_id(
+    admin_session: SandboxRestApiSession, sandbox_id: str, component_id: str
+):
     print("Starting DUT Command...")
-    res = admin_session.run_component_command(sandbox_id=sandbox_id, component_id=component_id, command_name=DUT_COMMAND)
+    res = admin_session.run_component_command(
+        sandbox_id=sandbox_id, component_id=component_id, command_name=DUT_COMMAND
+    )
     assert type(res) is dict
     print("Started execution response")
     pretty_print_response(res)

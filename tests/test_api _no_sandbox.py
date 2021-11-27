@@ -27,7 +27,7 @@ def test_get_default_blueprint(admin_session: SandboxRestApiSession):
 
 
 def test_get_and_delete_token(admin_session: SandboxRestApiSession):
-    """ get token for admin user """
+    """get token for admin user"""
     token_res = admin_session.get_token_for_target_user("admin")
     assert type(token_res) is str
     print(f"Token response: '{token_res}'")

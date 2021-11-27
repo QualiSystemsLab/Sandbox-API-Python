@@ -5,3 +5,4 @@
 tests/.env
 *.zip
 dist/
+*.pyc

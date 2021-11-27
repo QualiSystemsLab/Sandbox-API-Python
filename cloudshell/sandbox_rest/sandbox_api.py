@@ -392,18 +392,21 @@ class SandboxRestApiSession:
             raise SandboxRestException(f"Failed to get execution details for '{execution_id}'", response)
         return response.json()
 
-    def delete_execution(self, execution_id: str) -> dict:
+    def delete_execution(self, execution_id: str) -> None:
+        """
+        API returns dict with single key on successful deletion of execution
+        {"result": "success"}
+        """
         self._validate_auth_headers()
         response = requests.delete(f"{self._versioned_url}/executions/{execution_id}", headers=self._auth_headers)
         if not response.ok:
             raise SandboxRestException(f"Failed to delete execution for '{execution_id}'", response)
-        return response.json()
+        response_dict = response.json()
+        if not response_dict["result"] == "success":
+            raise SandboxRestException(f"Failed execution deletion of id {execution_id}\n"
+                                       f"Response: {response_dict}")
 
 
 if __name__ == "__main__":
     admin_api = SandboxRestApiSession(host="localhost", username="admin", password="admin", domain="end_users")
     user_token = admin_api.get_token_for_target_user("end_user")
-    user_api = SandboxRestApiSession(host="localhost", token=user_token)
-    response = user_api.start_sandbox(blueprint_id="end user bp")
-    commands = user_api.get_sandbox_command_details()
-    pass

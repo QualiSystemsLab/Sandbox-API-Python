@@ -25,15 +25,7 @@ class SandboxRestApiSession:
     """
 
     def __init__(
-        self,
-        host: str,
-        username="",
-        password="",
-        token="",
-        domain="Global",
-        port=82,
-        is_https=False,
-        api_version="v2",
+        self, host: str, username="", password="", token="", domain="Global", port=82, is_https=False, api_version="v2"
     ):
         """ Login to api and store headers for future requests """
         _protocol = "https" if is_https else "http"

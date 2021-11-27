@@ -64,6 +64,10 @@ class SandboxRestApiSession:
         self.auth_token = self.get_token_with_credentials(self.username, self._password, self.domain)
         self._auth_headers = self._build_auth_headers(self.auth_token)
 
+    def refresh_auth_from_token(self, token: str) -> None:
+        self.auth_token = token
+        self._auth_headers = self._build_auth_headers(token)
+
     def invalidate_auth(self) -> None:
         self.delete_token(self.auth_token)
         self._auth_headers = None

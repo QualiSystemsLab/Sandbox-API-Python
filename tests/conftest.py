@@ -1,18 +1,17 @@
 import time
 
 import pytest
-from env_settings import *
 from constants import *
+from env_settings import *
 
 from cloudshell.sandbox_rest.sandbox_api import SandboxRestApiSession
 
 
 @pytest.fixture(scope="session")
 def admin_session() -> SandboxRestApiSession:
-    with SandboxRestApiSession(host=CLOUDSHELL_SERVER,
-                               username=CLOUDSHELL_ADMIN_USER,
-                               password=CLOUDSHELL_ADMIN_PASSWORD,
-                               domain=CLOUDSHELL_DOMAIN) as api:
+    with SandboxRestApiSession(
+        host=CLOUDSHELL_SERVER, username=CLOUDSHELL_ADMIN_USER, password=CLOUDSHELL_ADMIN_PASSWORD, domain=CLOUDSHELL_DOMAIN
+    ) as api:
         yield api
         time.sleep(2)
         print("admin session token revoked")
@@ -26,5 +25,3 @@ def empty_blueprint():
 @pytest.fixture(scope="session")
 def dut_blueprint():
     return DUT_BLUEPRINT
-
-

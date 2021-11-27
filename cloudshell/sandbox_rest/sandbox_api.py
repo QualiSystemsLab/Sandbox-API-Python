@@ -403,8 +403,7 @@ class SandboxRestApiSession:
             raise SandboxRestException(f"Failed to delete execution for '{execution_id}'", response)
         response_dict = response.json()
         if not response_dict["result"] == "success":
-            raise SandboxRestException(f"Failed execution deletion of id {execution_id}\n"
-                                       f"Response: {response_dict}")
+            raise SandboxRestException(f"Failed execution deletion of id {execution_id}\n" f"Response: {response_dict}")
 
 
 if __name__ == "__main__":

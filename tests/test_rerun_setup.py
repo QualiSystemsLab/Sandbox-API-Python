@@ -4,17 +4,16 @@ Test re-running setup to validate blueprint level commands, getting details, and
 import time
 
 import pytest
-from cloudshell.sandbox_rest.sandbox_api import SandboxRestApiSession
-from constants import *
 from common import *
+from constants import *
+
+from cloudshell.sandbox_rest.sandbox_api import SandboxRestApiSession
 
 
 @pytest.fixture(scope="module")
 def sandbox_id(admin_session: SandboxRestApiSession, empty_blueprint):
     # start sandbox
-    start_res = admin_session.start_sandbox(
-        blueprint_id=empty_blueprint, sandbox_name="Pytest empty blueprint test"
-    )
+    start_res = admin_session.start_sandbox(blueprint_id=empty_blueprint, sandbox_name="Pytest empty blueprint test")
     sandbox_id = start_res["id"]
     print(f"Sandbox started: {sandbox_id}")
     yield sandbox_id
@@ -36,9 +35,8 @@ def setup_execution_id(admin_session: SandboxRestApiSession, sandbox_id: str):
         counter += 1
 
     print("Rerunning Setup...")
-    res = admin_session.run_sandbox_command(sandbox_id=sandbox_id,
-                                            command_name=BLUEPRINT_SETUP_COMMAND)
-    assert (type(res) is dict)
+    res = admin_session.run_sandbox_command(sandbox_id=sandbox_id, command_name=BLUEPRINT_SETUP_COMMAND)
+    assert type(res) is dict
     print("Setup re-run execution response")
     pretty_print_response(res)
     execution_id = res["executionId"]

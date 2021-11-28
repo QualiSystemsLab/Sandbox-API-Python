@@ -1,6 +1,6 @@
 import json
 
-from cloudshell.sandbox_rest.sandbox_api import SandboxRestApiSession
+from src.cloudshell.sandbox_rest.sandbox_api import SandboxRestApiSession
 
 
 def pretty_print_response(dict_response):

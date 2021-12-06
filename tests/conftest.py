@@ -9,15 +9,14 @@ from cloudshell.sandbox_rest.sandbox_api import SandboxRestApiSession
 
 @pytest.fixture(scope="session")
 def admin_session() -> SandboxRestApiSession:
-    with SandboxRestApiSession(
-        host=CLOUDSHELL_SERVER,
-        username=CLOUDSHELL_ADMIN_USER,
-        password=CLOUDSHELL_ADMIN_PASSWORD,
-        domain=CLOUDSHELL_DOMAIN,
-    ) as api:
-        yield api
-        time.sleep(2)
+    admin_api = SandboxRestApiSession(
+        host=CLOUDSHELL_SERVER, username=CLOUDSHELL_ADMIN_USER, password=CLOUDSHELL_ADMIN_PASSWORD, domain=CLOUDSHELL_DOMAIN
+    )
+    with admin_api:
+        yield admin_api
+        time.sleep(3)
         print("admin session token revoked")
+        print(f"total requests: {admin_api.rest_service.request_counter}")
 
 
 @pytest.fixture(scope="session")

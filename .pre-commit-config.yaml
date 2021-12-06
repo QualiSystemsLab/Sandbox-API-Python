@@ -38,7 +38,7 @@ repos:
         args: [
             --max-line-length=127,
             --max-public-methods=32,
-            --max-args=9,
-            '--disable=too-few-public-methods,logging-fstring-interpolation,too-many-instance-attributes,no-else-return,too-many-locals,no-self-use,duplicate-code,broad-except,logging-not-lazy,unspecified-encoding, unused-wildcard-import,missing-function-docstring,missing-module-docstring,import-error,wildcard-import,invalid-name,redefined-outer-name,no-name-in-module',
+            --max-args=13,
+            '--disable=too-few-public-methods,logging-fstring-interpolation,too-many-instance-attributes,no-else-return,too-many-locals,no-self-use,duplicate-code,broad-except,logging-not-lazy,unspecified-encoding, unused-wildcard-import,missing-function-docstring,missing-module-docstring,import-error,wildcard-import,invalid-name,redefined-outer-name,no-name-in-module, arguments-differ',
             '--good-names=ip,rc,eval'
         ]

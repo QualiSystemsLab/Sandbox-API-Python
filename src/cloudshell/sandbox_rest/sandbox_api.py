@@ -37,10 +37,10 @@ class SandboxRestApiSession(RequestsClient):
         use_https=False,
         ssl_verify=False,
         proxies: dict = None,
-        insecure_warning=False,
+        show_insecure_warning=False,
     ):
         """ Login to api and store headers for future requests """
-        super().__init__(host, username, password, token, logger, port, use_https, ssl_verify, proxies, insecure_warning)
+        super().__init__(host, username, password, token, logger, port, use_https, ssl_verify, proxies, show_insecure_warning)
         self._base_uri = "/api"
         self._v2_base_uri = f"{self._base_uri}/v2"
         self.domain = domain

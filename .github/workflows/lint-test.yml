@@ -1,4 +1,4 @@
-name: Lint and Test
+name: Pre-commit Lint
 
 on:
   pull_request:
@@ -22,6 +22,7 @@ jobs:
         pip install .
     - name: run pre-commit linters and formatters
       uses: pre-commit/action@v2.0.3
-    - name: run pytest tests
-      run: python -m pytest --import-mode=append tests/ --cov
+      # pytest runs integration tests with dependency on Quali Server Instance - run them locally
+#    - name: run pytest tests
+#      run: python -m pytest --import-mode=append tests/ --cov
 

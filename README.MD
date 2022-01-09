@@ -17,10 +17,13 @@ pip install cloudshell-sandbox-rest
 ### Basic Usage
 ```python
 from cloudshell.sandbox_rest.sandbox_api import SandboxRestApiSession
+
+
 api = SandboxRestApiSession(host="localhost", username="admin", password="admin", domain="Global")
 start_response = api.start_sandbox(blueprint_id="<MY_BLUEPRINT_NAME>", sandbox_name="My Rest Api Blueprint")
 sandbox_id = start_response["id"]
 components_response = api.get_sandbox_components(sandbox_id)
+
 print(f"total components in sandbox: {len(components_response)}")
 ```
 

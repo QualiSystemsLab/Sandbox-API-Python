@@ -47,6 +47,7 @@ class SandboxRestApiSession(RequestsClient):
         self.login()
 
     def login(self, user="", password="", token="", domain="") -> None:
+        """ Called from init - can also be used to refresh session with credentials """
         self.user = user or self.user
         self.password = password or self.password
         self.token = token or self.token
@@ -55,10 +56,10 @@ class SandboxRestApiSession(RequestsClient):
         if not self.domain:
             raise ValueError("Domain must be passed to login")
 
-        if not self.token and self.user and self.password:
+        if not self.token:
+            if not self.user or not self.password:
+                raise ValueError("Login requires Token or Username / Password")
             self.token = self._get_token_with_credentials(self.user, self.password, self.domain)
-        else:
-            raise ValueError("Login requires Token or Username / Password")
 
         self._set_auth_header_on_session()
 

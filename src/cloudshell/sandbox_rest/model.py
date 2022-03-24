@@ -89,12 +89,10 @@ class BlueprintDescription(SandboxApiBaseModel):
     categories: Optional[List[str]]
     description: Optional[str]
     params: Optional[List[BlueprintInput]]
-    availability: Optional[BlueprintAvailabilityStates] = Field(
-        description="The availability of blueprint: " "['Available Now', 'Not Available']"
-    )
-    estimated_setup_duration: Optional[str] = Field(
-        description="Estimated blueprint setup duration. " "Uses'ISO 8601' Standard. (e.g 'PT23H' or 'PT4H2M')"
-    )
+    availability: Optional[BlueprintAvailabilityStates]
+    """ The availability of blueprint: ['Available Now', 'Not Available'] """
+    estimated_setup_duration: Optional[str]
+    """ Estimated blueprint setup duration. Uses'ISO 8601' Standard. (e.g 'PT23H' or 'PT4H2M') """
 
 
 @_basemodel_decorator
@@ -145,7 +143,8 @@ class SandboxEvent(SandboxApiBaseModel):
     event_type: Optional[SandboxEventTypes]
     event_text: Optional[str]
     output: Optional[str]
-    time: Optional[str] = Field(description="Event time in 'ISO 8601' Standard. (e.g '2000-12-31T23:59:60Z')")
+    time: Optional[str]
+    """ Event time in 'ISO 8601' Standard. (e.g '2000-12-31T23:59:60Z') """
 
 
 @_basemodel_decorator
@@ -210,9 +209,8 @@ class CommandExecutionDetails(SandboxApiBaseModel):
     started: Optional[str]
     ended: Optional[str]
     output: Optional[str]
-    command_context: Optional[CommandContextDetails] = Field(
-        None, description="additional data to populate about command. " "NOTE: this does not come from api response"
-    )
+    command_context: Optional[CommandContextDetails] = Field(description="additional data to populate about command. "
+                                                                         "NOTE: this does not come from api response")
 
 
 @_basemodel_decorator
@@ -261,7 +259,8 @@ class ExtendResponse(SandboxApiBaseModel):
 class SandboxOutputEntry(SandboxApiBaseModel):
     id: Optional[int]
     text: Optional[str]
-    time: Optional[str] = Field(description="Event time in 'ISO 8601' Standard. (e.g '2000-12-31T23:59:60Z'")
+    time: Optional[str]
+    """ Event time in 'ISO 8601' Standard. (e.g '2000-12-31T23:59:60Z' """
 
 
 @_basemodel_decorator

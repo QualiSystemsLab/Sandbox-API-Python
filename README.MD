@@ -20,7 +20,7 @@ pip install cloudshell-sandbox-rest
 ### Basic Usage
 
 ```python
-from cloudshell.sandbox_rest.sandbox_api import SandboxRestApiSession
+from cloudshell.sandbox_rest.api import SandboxRestApiSession
 
 # pull in api user credentials
 CS_SERVER = "localhost"
@@ -44,7 +44,7 @@ print(f"total components in sandbox: {len(components_response)}")
 Using the api session with a context manager "with" statement will log out and invalidate the token for you.
 
 ```python
-from cloudshell.sandbox_rest.sandbox_api import SandboxRestApiSession
+from cloudshell.sandbox_rest.api import SandboxRestApiSession
 
 CS_SERVER = "localhost"
 CS_USER = "admin"
@@ -75,7 +75,7 @@ Common use case is for admin to pull user token and start a session on their beh
 below.
 
 ```python
-from cloudshell.sandbox_rest.sandbox_api import SandboxRestApiSession
+from cloudshell.sandbox_rest.api import SandboxRestApiSession
 
 # admin credentials
 CS_SERVER = "localhost"

@@ -2,7 +2,7 @@ import json
 from random import randint
 from time import sleep
 
-from src.cloudshell.sandbox_rest.sandbox_api import SandboxRestApiSession
+from src.cloudshell.sandbox_rest.api import SandboxRestApiSession
 
 
 def pretty_print_response(dict_response):

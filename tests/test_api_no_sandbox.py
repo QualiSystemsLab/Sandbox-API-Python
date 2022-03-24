@@ -7,7 +7,7 @@ import constants
 import env_settings
 import pytest
 
-from cloudshell.sandbox_rest.sandbox_api import SandboxRestApiSession
+from cloudshell.sandbox_rest.api import SandboxRestApiSession
 
 
 @pytest.fixture(scope="module")

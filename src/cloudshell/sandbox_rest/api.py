@@ -1,3 +1,8 @@
+"""
+Module that handles the Sandbox Rest API session
+Handles login and wraps all api methods
+Returns Pydantic BaseModel responses of returned JSON
+"""
 import json
 import logging
 from dataclasses import asdict, dataclass

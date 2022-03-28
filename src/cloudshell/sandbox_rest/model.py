@@ -1,6 +1,5 @@
 """
-decorator is added for intellisense auto completion purposes
-https://stackoverflow.com/a/71257588
+All pydantic BaseModel class representations of Sandbox API responses
 """
 from __future__ import annotations
 from enum import Enum
@@ -8,6 +7,7 @@ from typing import TYPE_CHECKING, List, Optional
 
 from pydantic import BaseModel, Field
 
+# added for dev intellisense: https://stackoverflow.com/a/71257588
 if TYPE_CHECKING:
     from dataclasses import dataclass as _basemodel_decorator
 else:

@@ -6,10 +6,11 @@ from typing import List
 from abstract_http_client.http_clients.requests_client import RequestsClient
 
 from cloudshell.sandbox_rest.exceptions import SandboxRestAuthException, SandboxRestException
+from cloudshell.sandbox_rest import model
 
 
 @dataclass
-class InputParam:
+class CommandInputParam:
     """
     param objects passed to sandbox / component command endpoints
     sandbox global inputs, commands and resource commands all follow this generic name/value convention
@@ -116,9 +117,9 @@ class SandboxRestApiSession(RequestsClient):
         blueprint_id: str,
         sandbox_name="",
         duration="PT2H0M",
-        bp_params: List[InputParam] = None,
+        bp_params: List[CommandInputParam] = None,
         permitted_users: List[str] = None,
-    ) -> dict:
+    ) -> model.SandboxDetails:
         """
         Create a sandbox from the provided blueprint id
         Duration format must be a valid 'ISO 8601'. (e.g 'PT23H' or 'PT4H2M')
@@ -134,15 +135,16 @@ class SandboxRestApiSession(RequestsClient):
             "params": [asdict(x) for x in bp_params] if bp_params else [],
         }
 
-        return self.rest_service.request_post(uri, data).json()
+        response_dict = self.rest_service.request_post(uri, data).json()
+        return model.dict_to_model(response_dict, model.SandboxDetails)
 
     def start_persistent_sandbox(
         self,
         blueprint_id: str,
         sandbox_name="",
-        bp_params: List[InputParam] = None,
+        bp_params: List[CommandInputParam] = None,
         permitted_users: List[str] = None,
-    ) -> dict:
+    ) -> model.SandboxDetails:
         """ Create a persistent sandbox from the provided blueprint id """
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/blueprints/{blueprint_id}/start-persistent"
@@ -154,40 +156,44 @@ class SandboxRestApiSession(RequestsClient):
             "params": [asdict(x) for x in bp_params] if bp_params else [],
         }
 
-        return self.rest_service.request_post(uri, data).json()
+        response_dict = self.rest_service.request_post(uri, data).json()
+        return model.dict_to_model(response_dict, model.SandboxDetails)
+
 
     def run_sandbox_command(
         self,
         sandbox_id: str,
         command_name: str,
-        params: List[InputParam] = None,
+        params: List[CommandInputParam] = None,
         print_output=True,
-    ) -> dict:
+    ) -> model.CommandStartResponse:
         """Run a sandbox level command"""
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/sandboxes/{sandbox_id}/commands/{command_name}/start"
         data = {"printOutput": print_output}
         params = [asdict(x) for x in params] if params else []
         data["params"] = params
-        return self.rest_service.request_post(uri, data).json()
+        response_dict = self.rest_service.request_post(uri, data).json()
+        return model.dict_to_model(response_dict, model.CommandStartResponse)
 
     def run_component_command(
         self,
         sandbox_id: str,
         component_id: str,
         command_name: str,
-        params: List[InputParam] = None,
+        params: List[CommandInputParam] = None,
         print_output: bool = True,
-    ) -> dict:
+    ) -> model.CommandStartResponse:
         """Start a command on sandbox component"""
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/sandboxes/{sandbox_id}/components/{component_id}/commands/{command_name}/start"
         data = {"printOutput": print_output}
         params = [asdict(x) for x in params] if params else []
         data["params"] = params
-        return self.rest_service.request_post(uri, data).json()
+        response_dict = self.rest_service.request_post(uri, data).json()
+        return model.dict_to_model(response_dict, model.CommandStartResponse)
 
-    def extend_sandbox(self, sandbox_id: str, duration: str) -> dict:
+    def extend_sandbox(self, sandbox_id: str, duration: str) -> model.ExtendResponse:
         """Extend the sandbox
         :param str sandbox_id: Sandbox id
         :param str duration: duration in ISO 8601 format (P1Y1M1DT1H1M1S = 1year, 1month, 1day, 1hour, 1min, 1sec)
@@ -196,27 +202,31 @@ class SandboxRestApiSession(RequestsClient):
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/sandboxes/{sandbox_id}/extend"
         data = {"extended_time": duration}
-        return self.rest_service.request_post(uri, data).json()
+        response_dict = self.rest_service.request_post(uri, data).json()
+        return model.dict_to_model(response_dict, model.ExtendResponse)
 
-    def stop_sandbox(self, sandbox_id: str) -> None:
+    def stop_sandbox(self, sandbox_id: str) -> model.StopSandboxResponse:
         """Stop the sandbox given sandbox id"""
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/sandboxes/{sandbox_id}/stop"
-        return self.rest_service.request_post(uri).json()
+        response_dict = self.rest_service.request_post(uri).json()
+        return model.dict_to_model(response_dict, model.StopSandboxResponse)
 
     # SANDBOX GET REQUESTS
-    def get_sandboxes(self, show_historic=False) -> list:
+    def get_sandboxes(self, show_historic=False) -> List[model.SandboxDescriptionShort]:
         """Get list of sandboxes"""
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/sandboxes"
         params = {"show_historic": "true" if show_historic else "false"}
-        return self.rest_service.request_get(uri, params=params).json()
+        response_list = self.rest_service.request_get(uri, params=params).json()
+        return model.list_to_model(response_list, model.SandboxDescriptionShort)
 
-    def get_sandbox_details(self, sandbox_id: str) -> dict:
+    def get_sandbox_details(self, sandbox_id: str) -> model.SandboxDetails:
         """Get details of the given sandbox id"""
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/sandboxes/{sandbox_id}"
-        return self.rest_service.request_get(uri).json()
+        response_dict = self.rest_service.request_get(uri).json()
+        return model.dict_to_model(response_dict, model.SandboxDetails)
 
     def get_sandbox_activity(
         self,
@@ -225,7 +235,7 @@ class SandboxRestApiSession(RequestsClient):
         since="",
         from_event_id: int = None,
         tail: int = None,
-    ) -> dict:
+    ) -> model.ActivityEventsResponse:
         """
         Get list of sandbox activity
         'since' - format must be a valid 'ISO 8601'. (e.g 'PT23H' or 'PT4H2M')
@@ -246,43 +256,51 @@ class SandboxRestApiSession(RequestsClient):
         if tail:
             params["tail"] = tail
 
-        return self.rest_service.request_get(uri, params=params).json()
+        response_dict = self.rest_service.request_get(uri, params=params).json()
+        return model.dict_to_model(response_dict, model.ActivityEventsResponse)
 
-    def get_sandbox_commands(self, sandbox_id: str) -> list:
+    def get_sandbox_commands(self, sandbox_id: str) -> List[model.Command]:
         """Get list of sandbox commands"""
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/sandboxes/{sandbox_id}/commands"
-        return self.rest_service.request_get(uri).json()
+        response_list = self.rest_service.request_get(uri).json()
+        return model.list_to_model(response_list, model.Command)
 
-    def get_sandbox_command_details(self, sandbox_id: str, command_name: str) -> dict:
+    def get_sandbox_command_details(self, sandbox_id: str, command_name: str) -> model.Command:
         """Get details of specific sandbox command"""
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/sandboxes/{sandbox_id}/commands/{command_name}"
-        return self.rest_service.request_get(uri).json()
+        response_dict = self.rest_service.request_get(uri).json()
+        return model.dict_to_model(response_dict, model.Command)
 
-    def get_sandbox_components(self, sandbox_id: str) -> list:
+    def get_sandbox_components(self, sandbox_id: str) -> List[model.SandboxComponentFull]:
         """Get list of sandbox components"""
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/sandboxes/{sandbox_id}/components"
-        return self.rest_service.request_get(uri).json()
+        response_list = self.rest_service.request_get(uri).json()
+        return model.list_to_model(response_list, model.SandboxComponentFull)
 
-    def get_sandbox_component_details(self, sandbox_id: str, component_id: str) -> dict:
+    def get_sandbox_component_details(self, sandbox_id: str, component_id: str) -> model.SandboxComponentFull:
         """Get details of components in sandbox"""
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/sandboxes/{sandbox_id}/components/{component_id}"
-        return self.rest_service.request_get(uri).json()
+        response_dict = self.rest_service.request_get(uri).json()
+        return model.dict_to_model(response_dict, model.SandboxComponentFull)
 
-    def get_sandbox_component_commands(self, sandbox_id: str, component_id: str) -> list:
+
+    def get_sandbox_component_commands(self, sandbox_id: str, component_id: str) -> List[model.Command]:
         """Get list of commands for a particular component in sandbox"""
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/sandboxes/{sandbox_id}/components/{component_id}/commands"
-        return self.rest_service.request_get(uri).json()
+        response_list = self.rest_service.request_get(uri).json()
+        return model.list_to_model(response_list, model.Command)
 
-    def get_sandbox_component_command_details(self, sandbox_id: str, component_id: str, command: str) -> dict:
+    def get_sandbox_component_command_details(self, sandbox_id: str, component_id: str, command: str) -> model.CommandExecutionDetails:
         """Get details of a command of sandbox component"""
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/sandboxes/{sandbox_id}/components/{component_id}/commands/{command}"
-        return self.rest_service.request_get(uri).json()
+        response_dict = self.rest_service.request_get(uri).json()
+        return model.dict_to_model(response_dict, model.CommandExecutionDetails)
 
     def get_sandbox_instructions(self, sandbox_id: str) -> str:
         """ Pull the instructions text of sandbox """
@@ -296,7 +314,7 @@ class SandboxRestApiSession(RequestsClient):
         tail: int = None,
         from_entry_id: int = None,
         since: str = None,
-    ) -> dict:
+    ) -> model.SandboxOutput:
         """Get list of sandbox output"""
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/sandboxes/{sandbox_id}/output"
@@ -308,29 +326,33 @@ class SandboxRestApiSession(RequestsClient):
         if since:
             params["since"] = since
 
-        return self.rest_service.request_get(uri, params=params).json()
+        response_dict = self.rest_service.request_get(uri, params=params).json()
+        return model.dict_to_model(response_dict, model.SandboxOutput)
 
     # BLUEPRINT GET REQUESTS
-    def get_blueprints(self) -> list:
-        """Get list of blueprints"""
+    def get_blueprints(self, raw_json=False) -> List[model.BlueprintDescription]:
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/blueprints"
-        return self.rest_service.request_get(uri).json()
+        blueprints_list = self.rest_service.request_get(uri).json()
+        return model.list_to_model(blueprints_list, model.BlueprintDescription)
 
-    def get_blueprint_details(self, blueprint_id: str) -> dict:
+    def get_blueprint_details(self, blueprint_id: str) -> model.BlueprintDescription:
         """
         Get details of a specific blueprint
         Can pass either blueprint name OR blueprint ID
         """
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/blueprints/{blueprint_id}"
-        return self.rest_service.request_get(uri).json()
+        details_dict = self.rest_service.request_get(uri).json()
+        return model.dict_to_model(details_dict, model.BlueprintDescription)
+
 
     # EXECUTIONS
-    def get_execution_details(self, execution_id: str) -> dict:
+    def get_execution_details(self, execution_id: str) -> model.CommandExecutionDetails:
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/executions/{execution_id}"
-        return self.rest_service.request_get(uri).json()
+        details_dict = self.rest_service.request_get(uri).json()
+        return model.dict_to_model(details_dict, model.CommandExecutionDetails)
 
     def delete_execution(self, execution_id: str) -> None:
         """

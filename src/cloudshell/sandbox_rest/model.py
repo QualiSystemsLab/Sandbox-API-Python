@@ -2,7 +2,7 @@
 decorator is added for intellisense auto completion purposes
 https://stackoverflow.com/a/71257588
 """
-
+from __future__ import annotations
 from enum import Enum
 from typing import TYPE_CHECKING, List, Optional
 
@@ -11,14 +11,33 @@ from pydantic import BaseModel, Field
 if TYPE_CHECKING:
     from dataclasses import dataclass as _basemodel_decorator
 else:
-
-    def _basemodel_decorator(x):
-        return x
+    def _basemodel_decorator(func):
+        return func
 
 
 class SandboxApiBaseModel(BaseModel):
-    def pretty_json(self, indent=4):
-        return self.json(indent=indent)
+    class Config:
+        use_enum_values = True
+
+    response_dict: dict = None
+    """ the original dictionary received from api response """
+
+    def pretty_json(self, indent=4, exclude_response=True):
+        excluded_key_set = set()
+        if exclude_response:
+            excluded_key_set.add("response_dict")
+        return self.json(indent=indent, exclude=excluded_key_set)
+
+
+def list_to_model(response_list: List[dict], model: SandboxApiBaseModel) -> List[SandboxApiBaseModel]:
+    return [dict_to_model(dict_item, model) for dict_item in response_list]
+
+
+def dict_to_model(response_dict: dict, model: SandboxApiBaseModel) -> SandboxApiBaseModel:
+    """ calls parse_obj, but additionally caches the response dict """
+    wrapped_item = model.parse_obj(response_dict)
+    wrapped_item.response_dict = response_dict
+    return wrapped_item
 
 
 class BlueprintAvailabilityStates(str, Enum):
@@ -28,6 +47,7 @@ class BlueprintAvailabilityStates(str, Enum):
 
 class SandboxStates(str, Enum):
     PENDING = "Pending"
+    BEFORE_SETUP = "BeforeSetup"
     PENDING_SETUP = "Pending Setup"
     RUNNING_SETUP = "Setup"
     READY = "Ready"
@@ -49,6 +69,7 @@ class SandboxStates(str, Enum):
 
 
 class SetupStages(str, Enum):
+    NONE = "None"
     PROVISIONING = "Provisioning"
     CONNECTIVITY = "Connectivity"
     CONFIGURATION = "Configuration"
@@ -107,7 +128,7 @@ class SandboxComponentBasic(SandboxApiBaseModel):
 
 
 @_basemodel_decorator
-class SandboxDetailsBasic(SandboxApiBaseModel):
+class SandboxDetails(SandboxApiBaseModel):
     id: Optional[str]
     blueprint_id: Optional[str]
     type: Optional[str]
@@ -129,7 +150,7 @@ class BlueprintReference(SandboxApiBaseModel):
 
 
 @_basemodel_decorator
-class SandboxDescription(SandboxApiBaseModel):
+class SandboxDescriptionShort(SandboxApiBaseModel):
     id: Optional[str]
     name: Optional[str]
     blueprint: Optional[BlueprintReference]
@@ -148,7 +169,7 @@ class SandboxEvent(SandboxApiBaseModel):
 
 
 @_basemodel_decorator
-class SandboxEventsResponse(SandboxApiBaseModel):
+class ActivityEventsResponse(SandboxApiBaseModel):
     num_returned_events: Optional[int]
     more_pages: Optional[bool]
     next_event_id: Optional[int]
@@ -257,7 +278,7 @@ class ExtendResponse(SandboxApiBaseModel):
 
 @_basemodel_decorator
 class SandboxOutputEntry(SandboxApiBaseModel):
-    id: Optional[int]
+    id: Optional[str]
     text: Optional[str]
     time: Optional[str]
     """ Event time in 'ISO 8601' Standard. (e.g '2000-12-31T23:59:60Z' """
@@ -269,3 +290,9 @@ class SandboxOutput(SandboxApiBaseModel):
     next_entry_id: Optional[str]
     more_pages: Optional[bool]
     entries: Optional[List[SandboxOutputEntry]]
+
+
+# Missing from Swagger Schema Docs
+@_basemodel_decorator
+class StopSandboxResponse(SandboxApiBaseModel):
+    result: Optional[str] = "success"

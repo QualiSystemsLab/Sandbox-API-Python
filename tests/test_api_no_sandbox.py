@@ -7,6 +7,7 @@ import constants
 import env_settings
 import pytest
 
+from cloudshell.sandbox_rest import model
 from cloudshell.sandbox_rest.api import SandboxRestApiSession
 
 
@@ -37,12 +38,19 @@ def test_get_blueprints(admin_session: SandboxRestApiSession):
     bp_res = admin_session.get_blueprints()
     common.random_sleep()
     assert isinstance(bp_res, list)
-    print(f"Blueprint count found in system: '{len(bp_res)}'")
+    if bp_res:
+        print(f"Blueprint count found in system: '{len(bp_res)}'")
+    else:
+        print("no blueprints found in system")
+        return
+    first_bp = bp_res[0]
+    print(f"blueprint name: {first_bp.name}")
+    print(f"pretty printed:\n{first_bp.pretty_json()}")
 
 
 def test_get_default_blueprint(admin_session: SandboxRestApiSession):
     bp_res = admin_session.get_blueprint_details(constants.DEFAULT_EMPTY_BLUEPRINT)
     common.random_sleep()
-    assert isinstance(bp_res, dict)
-    bp_name = bp_res["name"]
-    print(f"Pulled details for '{bp_name}'")
+    bp_name = bp_res.name
+    print(f"Pulled details for '{bp_name}'\n{bp_res.pretty_json()}")
+    assert isinstance(bp_res, model.BlueprintDescription)

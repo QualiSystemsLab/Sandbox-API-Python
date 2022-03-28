@@ -21,6 +21,6 @@ def fixed_sleep():
     sleep(3)
 
 
-def get_blueprint_id_from_name(api: SandboxRestApiSession, bp_name: str):
+def get_blueprint_id_from_name(api: SandboxRestApiSession, bp_name: str) -> str:
     res = api.get_blueprint_details(bp_name)
-    return res["id"]
+    return res.id

@@ -6,6 +6,7 @@ import common
 import pytest
 
 from cloudshell.sandbox_rest.api import SandboxRestApiSession
+from cloudshell.sandbox_rest.api import model
 
 
 @pytest.fixture(scope="module")
@@ -19,10 +20,11 @@ def blueprint_id(admin_session: SandboxRestApiSession, empty_blueprint):
 def sandbox_id(admin_session: SandboxRestApiSession, blueprint_id):
     # start sandbox
     start_res = admin_session.start_sandbox(blueprint_id=blueprint_id, sandbox_name="Pytest empty blueprint test")
-    sandbox_id = start_res["id"]
+    sandbox_id = start_res.id
     print(f"Sandbox started: {sandbox_id}")
     yield sandbox_id
-    admin_session.stop_sandbox(sandbox_id)
+    stop_response = admin_session.stop_sandbox(sandbox_id)
+    print(stop_response)
     print(f"\nSandbox ended: {sandbox_id}")
 
 
@@ -34,8 +36,8 @@ def test_start_stop(sandbox_id):
 def test_get_sandbox_details(admin_session, sandbox_id):
     common.random_sleep()
     details_res = admin_session.get_sandbox_details(sandbox_id)
-    assert isinstance(details_res, dict)
-    sb_name = details_res["name"]
+    sb_name = details_res.name
+    assert isinstance(details_res, model.SandboxDetails)
     print(f"Pulled details for sandbox '{sb_name}'")
 
 
@@ -51,24 +53,24 @@ def test_get_sandbox_commands(admin_session, sandbox_id):
     common.random_sleep()
     commands_res = admin_session.get_sandbox_commands(sandbox_id)
     assert isinstance(commands_res, list)
-    print(f"Sandbox commands: {[x['name'] for x in commands_res]}")
-    first_sb_command = admin_session.get_sandbox_command_details(sandbox_id, commands_res[0]["name"])
-    print(f"SB command name: {first_sb_command['name']}\n" f"description: {first_sb_command['description']}")
+    print(f"Sandbox commands: {[x.name for x in commands_res]}")
+    first_sb_command_details = admin_session.get_sandbox_command_details(sandbox_id, commands_res[0].name)
+    print(f"SB command name: {first_sb_command_details.name}\n" f"description: {first_sb_command_details.description}")
 
 
 def test_get_sandbox_events(admin_session, sandbox_id):
     common.random_sleep()
     activity_res = admin_session.get_sandbox_activity(sandbox_id)
-    assert isinstance(activity_res, dict) and "events" in activity_res
-    events = activity_res["events"]
+    assert isinstance(activity_res, model.ActivityEventsResponse)
+    events = activity_res.events
     print(f"activity events count: {len(events)}")
 
 
 def test_get_console_output(admin_session, sandbox_id):
     common.random_sleep()
     output_res = admin_session.get_sandbox_output(sandbox_id)
-    assert isinstance(output_res, dict) and "entries" in output_res
-    entries = output_res["entries"]
+    assert isinstance(output_res, model.SandboxOutput)
+    entries = output_res.entries
     print(f"Sandbox output entries count: {len(entries)}")
 
 
@@ -82,5 +84,5 @@ def test_get_instructions(admin_session, sandbox_id):
 def test_extend_sandbox(admin_session, sandbox_id):
     common.random_sleep()
     extend_response = admin_session.extend_sandbox(sandbox_id, "PT0H10M")
-    assert isinstance(extend_response, dict) and "remaining_time" in extend_response
-    print(f"extended sandbox. Remaining time: {extend_response['remaining_time']}")
+    assert isinstance(extend_response, model.ExtendResponse)
+    print(f"Extended sandbox - Remaining time: {extend_response.remaining_time}")

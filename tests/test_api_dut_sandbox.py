@@ -9,6 +9,7 @@ import common
 import constants
 import pytest
 
+from cloudshell.sandbox_rest import model
 from cloudshell.sandbox_rest.api import SandboxRestApiSession
 
 
@@ -23,7 +24,7 @@ def blueprint_id(admin_session: SandboxRestApiSession, dut_blueprint):
 def sandbox_id(admin_session: SandboxRestApiSession, blueprint_id):
     # start sandbox
     start_res = admin_session.start_sandbox(blueprint_id=blueprint_id, sandbox_name="Pytest DUT blueprint test")
-    sandbox_id = start_res["id"]
+    sandbox_id = start_res.id
     print(f"Sandbox started: {sandbox_id}")
     common.fixed_sleep()
     yield sandbox_id
@@ -35,9 +36,9 @@ def sandbox_id(admin_session: SandboxRestApiSession, blueprint_id):
 def component_id(admin_session: SandboxRestApiSession, sandbox_id: str):
     components = admin_session.get_sandbox_components(sandbox_id)
     common.fixed_sleep()
-    component_filter = [x for x in components if x["component_type"] == constants.DUT_MODEL]
+    component_filter = [x for x in components if x.component_type == constants.DUT_MODEL]
     assert component_filter
-    return component_filter[0]["id"]
+    return component_filter[0].id
 
 
 @pytest.fixture(scope="module")
@@ -47,10 +48,9 @@ def execution_id(admin_session: SandboxRestApiSession, sandbox_id: str, componen
         sandbox_id=sandbox_id, component_id=component_id, command_name=constants.DUT_COMMAND
     )
     common.fixed_sleep()
-    assert isinstance(res, dict)
-    print("Started execution response")
-    common.pretty_print_response(res)
-    execution_id = res["executionId"]
+    assert isinstance(res, model.CommandStartResponse)
+    print(f"Start execution response: {res.pretty_json()}")
+    execution_id = res.executionId
     return execution_id
 
 
@@ -58,14 +58,13 @@ def execution_id(admin_session: SandboxRestApiSession, sandbox_id: str, componen
 def test_get_execution_details(admin_session, execution_id):
     res = admin_session.get_execution_details(execution_id)
     common.fixed_sleep()
-    assert isinstance(res, dict)
+    assert isinstance(res, model.CommandExecutionDetails)
     return res
 
 
 def test_delete_execution(admin_session, execution_id, test_get_execution_details):
-    print("Execution Details")
-    common.pretty_print_response(test_get_execution_details)
-    is_supports_cancellation = test_get_execution_details["supports_cancellation"]
+    print(f"Execution Details: {test_get_execution_details.pretty_json()}")
+    is_supports_cancellation = test_get_execution_details.supports_cancellation
     if not is_supports_cancellation:
         print("Can't cancel this command. Returning")
         return

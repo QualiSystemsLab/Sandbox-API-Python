@@ -1,3 +1,4 @@
 requests>=2,<3
 abstract-http-client>=1,<2
 pydantic
+tenacity

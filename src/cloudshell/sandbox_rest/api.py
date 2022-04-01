@@ -5,13 +5,14 @@ Returns Pydantic BaseModel responses of returned JSON
 """
 import json
 import logging
+import time
 from dataclasses import asdict, dataclass
-from typing import List
+from typing import Callable, List
 
 from abstract_http_client.http_clients.requests_client import RequestsClient
+from tenacity import RetryError, retry, retry_if_result, stop_after_delay, wait_fixed
 
-from cloudshell.sandbox_rest.exceptions import SandboxRestAuthException, SandboxRestException
-from cloudshell.sandbox_rest import model
+from cloudshell.sandbox_rest import exceptions, model
 
 
 @dataclass
@@ -86,7 +87,7 @@ class SandboxRestApiSession(RequestsClient):
 
         login_token = response.text[1:-1]
         if not login_token:
-            raise SandboxRestAuthException(f"Invalid token. Token response {response.text}")
+            raise exceptions.SandboxRestAuthException(f"Invalid token. Token response {response.text}")
 
         return login_token
 
@@ -98,7 +99,7 @@ class SandboxRestApiSession(RequestsClient):
 
     def _validate_auth_header(self) -> None:
         if not self.rest_service.session.headers.get("Authorization"):
-            raise SandboxRestAuthException("No Authorization header currently set for session")
+            raise exceptions.SandboxRestAuthException("No Authorization header currently set for session")
 
     def get_token_for_target_user(self, user_name: str) -> str:
         """
@@ -116,54 +117,116 @@ class SandboxRestApiSession(RequestsClient):
         uri = f"{self._base_uri}/token/{token_id}"
         return self.rest_service.request_delete(uri).text
 
+    # BLUEPRINT GET REQUESTS
+    def get_blueprints(self) -> List[model.BlueprintDescription]:
+        self._validate_auth_header()
+        uri = f"{self._v2_base_uri}/blueprints"
+        blueprints_list = self.rest_service.request_get(uri).json()
+        return model.BlueprintDescription.list_to_models(blueprints_list)
+
+    def get_blueprint_details(self, blueprint_id: str) -> model.BlueprintDescription:
+        """
+        Get details of a specific blueprint
+        Can pass either blueprint name OR blueprint ID
+        """
+        self._validate_auth_header()
+        uri = f"{self._v2_base_uri}/blueprints/{blueprint_id}"
+        details_dict = self.rest_service.request_get(uri).json()
+        return model.BlueprintDescription.dict_to_model(details_dict)
+
     # SANDBOX POST REQUESTS
+    def _start_sandbox(
+        self,
+        blueprint_id: str,
+        sandbox_name: str,
+        duration: str = None,
+        bp_params: List[CommandInputParam] = None,
+        permitted_users: List[str] = None,
+        polling_setup: bool = False,
+        max_polling_minutes: int = 20,
+        polling_frequency_seconds: int = 30,
+        polling_log_level: str = logging.DEBUG,
+    ) -> model.SandboxDetails:
+        """ internal implementation request to handle both regular and persistent sandbox requests """
+        self._validate_auth_header()
+        if duration:
+            uri = f"{self._v2_base_uri}/blueprints/{blueprint_id}/start"
+        else:
+            uri = f"{self._v2_base_uri}/blueprints/{blueprint_id}/start-persistent"
+
+        sandbox_name = sandbox_name if sandbox_name else self.get_blueprint_details(blueprint_id).name
+
+        payload = {
+            "name": sandbox_name,
+            "permitted_users": permitted_users if permitted_users else [],
+            "params": [asdict(x) for x in bp_params] if bp_params else [],
+        }
+        if duration:
+            payload["duration"] = duration
+
+        response_dict = self.rest_service.request_post(uri, payload).json()
+        sandbox_details = model.SandboxDetails.dict_to_model(response_dict)
+        if polling_setup:
+            return self.poll_sandbox_setup(
+                sandbox_details.id, max_polling_minutes, polling_frequency_seconds, polling_log_level
+            )
+
+        return sandbox_details
+
     def start_sandbox(
         self,
         blueprint_id: str,
-        sandbox_name="",
-        duration="PT2H0M",
+        sandbox_name: str = "",
+        duration: str = "PT2H0M",
         bp_params: List[CommandInputParam] = None,
         permitted_users: List[str] = None,
+        polling_setup: bool = False,
+        max_polling_minutes: int = 20,
+        polling_frequency_seconds: int = 30,
+        polling_log_level: str = logging.DEBUG,
     ) -> model.SandboxDetails:
         """
         Create a sandbox from the provided blueprint id
         Duration format must be a valid 'ISO 8601'. (e.g 'PT23H' or 'PT4H2M')
         """
-        self._validate_auth_header()
-        uri = f"{self._v2_base_uri}/blueprints/{blueprint_id}/start"
-        sandbox_name = sandbox_name if sandbox_name else self.get_blueprint_details(blueprint_id)["name"]
-
-        data = {
-            "duration": duration,
-            "name": sandbox_name,
-            "permitted_users": permitted_users if permitted_users else [],
-            "params": [asdict(x) for x in bp_params] if bp_params else [],
-        }
-
-        response_dict = self.rest_service.request_post(uri, data).json()
-        return model.dict_to_model(response_dict, model.SandboxDetails)
+        return self._start_sandbox(
+            blueprint_id,
+            sandbox_name,
+            duration,
+            bp_params,
+            permitted_users,
+            polling_setup,
+            polling_log_level,
+            max_polling_minutes,
+            polling_frequency_seconds,
+        )
 
     def start_persistent_sandbox(
         self,
         blueprint_id: str,
-        sandbox_name="",
+        sandbox_name: str = "",
         bp_params: List[CommandInputParam] = None,
         permitted_users: List[str] = None,
+        polling_setup: bool = False,
+        max_polling_minutes: int = 20,
+        polling_frequency_seconds: int = 30,
+        polling_log_level: str = logging.DEBUG,
     ) -> model.SandboxDetails:
-        """ Create a persistent sandbox from the provided blueprint id """
-        self._validate_auth_header()
-        uri = f"{self._v2_base_uri}/blueprints/{blueprint_id}/start-persistent"
-
-        sandbox_name = sandbox_name if sandbox_name else self.get_blueprint_details(blueprint_id)["name"]
-        data = {
-            "name": sandbox_name,
-            "permitted_users": permitted_users if permitted_users else [],
-            "params": [asdict(x) for x in bp_params] if bp_params else [],
-        }
-
-        response_dict = self.rest_service.request_post(uri, data).json()
-        return model.dict_to_model(response_dict, model.SandboxDetails)
-
+        """
+        Create a PERSISTENT sandbox from the provided blueprint id
+        Duration format must be a valid 'ISO 8601'. (e.g 'PT23H' or 'PT4H2M')
+        """
+        return self._start_sandbox(
+            blueprint_id,
+            sandbox_name,
+            None,
+            bp_params,
+            permitted_users,
+            polling_setup,
+            polling_log_level,
+            max_polling_minutes,
+            polling_frequency_seconds,
+        )
 
     def run_sandbox_command(
         self,
@@ -179,7 +242,7 @@ class SandboxRestApiSession(RequestsClient):
         params = [asdict(x) for x in params] if params else []
         data["params"] = params
         response_dict = self.rest_service.request_post(uri, data).json()
-        return model.dict_to_model(response_dict, model.CommandStartResponse)
+        return model.CommandStartResponse.dict_to_model(response_dict)
 
     def run_component_command(
         self,
@@ -196,7 +259,7 @@ class SandboxRestApiSession(RequestsClient):
         params = [asdict(x) for x in params] if params else []
         data["params"] = params
         response_dict = self.rest_service.request_post(uri, data).json()
-        return model.dict_to_model(response_dict, model.CommandStartResponse)
+        return model.CommandStartResponse.dict_to_model(response_dict)
 
     def extend_sandbox(self, sandbox_id: str, duration: str) -> model.ExtendResponse:
         """Extend the sandbox
@@ -208,14 +271,31 @@ class SandboxRestApiSession(RequestsClient):
         uri = f"{self._v2_base_uri}/sandboxes/{sandbox_id}/extend"
         data = {"extended_time": duration}
         response_dict = self.rest_service.request_post(uri, data).json()
-        return model.dict_to_model(response_dict, model.ExtendResponse)
+        return model.ExtendResponse.dict_to_model(response_dict)
 
-    def stop_sandbox(self, sandbox_id: str) -> model.StopSandboxResponse:
+    def stop_sandbox(
+        self,
+        sandbox_id: str,
+        poll_teardown=False,
+        max_polling_minutes: int = 20,
+        polling_frequency_seconds: int = 30,
+        polling_log_level: str = logging.DEBUG,
+    ) -> model.StopSandboxResponse:
         """Stop the sandbox given sandbox id"""
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/sandboxes/{sandbox_id}/stop"
         response_dict = self.rest_service.request_post(uri).json()
-        return model.dict_to_model(response_dict, model.StopSandboxResponse)
+
+        stop_response = model.StopSandboxResponse.dict_to_model(response_dict)
+        if "success" not in stop_response.result:
+            raise exceptions.TeardownFailedException(f"Failed to stop sandbox. result:\n{json.dumps(response_dict)}")
+
+        if poll_teardown:
+            return self.poll_sandbox_teardown(sandbox_id, max_polling_minutes, polling_frequency_seconds, polling_log_level)
+
+        # if not polling, give teardown request chance to propagate before getting status
+        time.sleep(5)
+        return self.get_sandbox_details(sandbox_id)
 
     # SANDBOX GET REQUESTS
     def get_sandboxes(self, show_historic=False) -> List[model.SandboxDescriptionShort]:
@@ -224,14 +304,14 @@ class SandboxRestApiSession(RequestsClient):
         uri = f"{self._v2_base_uri}/sandboxes"
         params = {"show_historic": "true" if show_historic else "false"}
         response_list = self.rest_service.request_get(uri, params=params).json()
-        return model.list_to_model(response_list, model.SandboxDescriptionShort)
+        return model.SandboxDescriptionShort.list_to_models(response_list)
 
     def get_sandbox_details(self, sandbox_id: str) -> model.SandboxDetails:
         """Get details of the given sandbox id"""
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/sandboxes/{sandbox_id}"
         response_dict = self.rest_service.request_get(uri).json()
-        return model.dict_to_model(response_dict, model.SandboxDetails)
+        return model.SandboxDetails.dict_to_model(response_dict)
 
     def get_sandbox_activity(
         self,
@@ -253,7 +333,7 @@ class SandboxRestApiSession(RequestsClient):
         params = {}
 
         if error_only:
-            params["error_only"] = error_only
+            params["error_only"] = "true"
         if since:
             params["since"] = since
         if from_event_id:
@@ -262,56 +342,57 @@ class SandboxRestApiSession(RequestsClient):
             params["tail"] = tail
 
         response_dict = self.rest_service.request_get(uri, params=params).json()
-        return model.dict_to_model(response_dict, model.ActivityEventsResponse)
+        return model.ActivityEventsResponse.dict_to_model(response_dict)
 
     def get_sandbox_commands(self, sandbox_id: str) -> List[model.Command]:
         """Get list of sandbox commands"""
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/sandboxes/{sandbox_id}/commands"
         response_list = self.rest_service.request_get(uri).json()
-        return model.list_to_model(response_list, model.Command)
+        return model.Command.list_to_models(response_list)
 
     def get_sandbox_command_details(self, sandbox_id: str, command_name: str) -> model.Command:
         """Get details of specific sandbox command"""
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/sandboxes/{sandbox_id}/commands/{command_name}"
         response_dict = self.rest_service.request_get(uri).json()
-        return model.dict_to_model(response_dict, model.Command)
+        return model.Command.dict_to_model(response_dict)
 
     def get_sandbox_components(self, sandbox_id: str) -> List[model.SandboxComponentFull]:
         """Get list of sandbox components"""
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/sandboxes/{sandbox_id}/components"
         response_list = self.rest_service.request_get(uri).json()
-        return model.list_to_model(response_list, model.SandboxComponentFull)
+        return model.SandboxComponentFull.list_to_models(response_list)
 
     def get_sandbox_component_details(self, sandbox_id: str, component_id: str) -> model.SandboxComponentFull:
         """Get details of components in sandbox"""
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/sandboxes/{sandbox_id}/components/{component_id}"
         response_dict = self.rest_service.request_get(uri).json()
-        return model.dict_to_model(response_dict, model.SandboxComponentFull)
-
+        return model.SandboxComponentFull.dict_to_model(response_dict)
 
     def get_sandbox_component_commands(self, sandbox_id: str, component_id: str) -> List[model.Command]:
         """Get list of commands for a particular component in sandbox"""
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/sandboxes/{sandbox_id}/components/{component_id}/commands"
         response_list = self.rest_service.request_get(uri).json()
-        return model.list_to_model(response_list, model.Command)
+        return model.Command.list_to_models(response_list)
 
-    def get_sandbox_component_command_details(self, sandbox_id: str, component_id: str, command: str) -> model.CommandExecutionDetails:
+    def get_sandbox_component_command_details(
+        self, sandbox_id: str, component_id: str, command: str
+    ) -> model.CommandExecutionDetails:
         """Get details of a command of sandbox component"""
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/sandboxes/{sandbox_id}/components/{component_id}/commands/{command}"
         response_dict = self.rest_service.request_get(uri).json()
-        return model.dict_to_model(response_dict, model.CommandExecutionDetails)
+        return model.CommandExecutionDetails.dict_to_model(response_dict)
 
     def get_sandbox_instructions(self, sandbox_id: str) -> str:
         """ Pull the instructions text of sandbox """
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/sandboxes/{sandbox_id}/instructions"
-        return self.rest_service.request_get(uri).json()
+        return self.rest_service.request_get(uri).text
 
     def get_sandbox_output(
         self,
@@ -332,34 +413,16 @@ class SandboxRestApiSession(RequestsClient):
             params["since"] = since
 
         response_dict = self.rest_service.request_get(uri, params=params).json()
-        return model.dict_to_model(response_dict, model.SandboxOutput)
-
-    # BLUEPRINT GET REQUESTS
-    def get_blueprints(self, raw_json=False) -> List[model.BlueprintDescription]:
-        self._validate_auth_header()
-        uri = f"{self._v2_base_uri}/blueprints"
-        blueprints_list = self.rest_service.request_get(uri).json()
-        return model.list_to_model(blueprints_list, model.BlueprintDescription)
-
-    def get_blueprint_details(self, blueprint_id: str) -> model.BlueprintDescription:
-        """
-        Get details of a specific blueprint
-        Can pass either blueprint name OR blueprint ID
-        """
-        self._validate_auth_header()
-        uri = f"{self._v2_base_uri}/blueprints/{blueprint_id}"
-        details_dict = self.rest_service.request_get(uri).json()
-        return model.dict_to_model(details_dict, model.BlueprintDescription)
-
+        return model.SandboxOutput.dict_to_model(response_dict)
 
     # EXECUTIONS
     def get_execution_details(self, execution_id: str) -> model.CommandExecutionDetails:
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/executions/{execution_id}"
         details_dict = self.rest_service.request_get(uri).json()
-        return model.dict_to_model(details_dict, model.CommandExecutionDetails)
+        return model.CommandExecutionDetails.dict_to_model(details_dict)
 
-    def delete_execution(self, execution_id: str) -> None:
+    def delete_execution(self, execution_id: str) -> dict:
         """
         API returns dict with single key on successful deletion of execution
         {"result": "success"}
@@ -368,6 +431,106 @@ class SandboxRestApiSession(RequestsClient):
         uri = f"{self._v2_base_uri}/executions/{execution_id}"
         response_dict = self.rest_service.request_delete(uri).json()
         if not response_dict["result"] == "success":
-            raise SandboxRestException(
+            raise exceptions.SandboxRestException(
                 f"Failed execution deletion of id {execution_id}\n" f"{json.dumps(response_dict, indent=4)}"
             )
+        return response_dict
+
+    # Polling
+    def _poll_orchestration_state(
+        self,
+        orchestration_type: str,
+        reservation_id: str,
+        polling_func: Callable,
+        max_polling_minutes: int,
+        polling_frequency_seconds: int,
+        log_level=logging.DEBUG,
+    ) -> model.SandboxDetails:
+        """ Create blocking polling process """
+
+        def poll_and_log(sb_details: model.SandboxDetails):
+            if self.logger:
+                polling_msg = f"Polling {orchestration_type} for sandbox '{sb_details.id}'..."
+                self.logger.log(log_level, polling_msg)
+            polling_func(sb_details)
+
+        @retry(
+            retry=retry_if_result(poll_and_log),
+            wait=wait_fixed(polling_frequency_seconds),
+            stop=stop_after_delay(max_polling_minutes * 60),
+        )
+        def retry_poll_sandbox_details():
+            return self.get_sandbox_details(reservation_id)
+
+        try:
+            sandbox_details = retry_poll_sandbox_details()
+        except RetryError:
+            raise exceptions.OrchestrationPollingTimeout(f"Sandbox Polling time out after {max_polling_minutes} minutes")
+        return sandbox_details
+
+    def poll_sandbox_setup(
+        self, reservation_id: str, max_polling_minutes=20, polling_frequency_seconds=30, log_level=logging.DEBUG
+    ) -> model.SandboxDetails:
+        """ poll setup until completion """
+        sandbox_details = self._poll_orchestration_state(
+            orchestration_type="Setup",
+            reservation_id=reservation_id,
+            polling_func=_should_keep_polling_setup,
+            max_polling_minutes=max_polling_minutes,
+            polling_frequency_seconds=polling_frequency_seconds,
+            log_level=log_level,
+        )
+        setup_state = sandbox_details.state
+        sandbox_id = sandbox_details.id
+        if setup_state == model.SandboxStates.ERROR:
+            error_activity = self.get_sandbox_activity(sandbox_id, error_only=True)
+            raise exceptions.SetupFailedException(
+                f"Sandbox setup failed - sandbox id: '{sandbox_id}'", error_events=error_activity.events
+            )
+        return sandbox_details
+
+    def poll_sandbox_teardown(
+        self, reservation_id: str, max_polling_minutes=20, polling_frequency_seconds=30, log_level=logging.DEBUG
+    ) -> model.SandboxDetails:
+        """ poll teardown until completion  """
+        latest_event_request = self.get_sandbox_activity(reservation_id, tail=1).events
+        latest_event_id = latest_event_request[0].id if latest_event_request else 0
+        sandbox_details = self._poll_orchestration_state(
+            orchestration_type="Teardown",
+            reservation_id=reservation_id,
+            polling_func=_should_keep_polling_teardown,
+            max_polling_minutes=max_polling_minutes,
+            polling_frequency_seconds=polling_frequency_seconds,
+            log_level=log_level,
+        )
+        teardown_error_events = self.get_sandbox_activity(
+            reservation_id, error_only=True, from_event_id=latest_event_id
+        ).events
+        if teardown_error_events:
+            raise exceptions.TeardownFailedException(
+                f"Failed teardown - sandbox id: '{reservation_id}'", error_events=teardown_error_events
+            )
+        return sandbox_details
+
+
+# Polling Helpers
+def _should_keep_polling_setup(sandbox_details: model.SandboxDetails) -> bool:
+    """ if still in setup keep polling """
+    post_setup_states = model.SandboxStates.get_post_setup_states()
+    if sandbox_details.state not in post_setup_states:
+        return True
+    return False
+
+
+def _should_keep_polling_teardown(sandbox_details: model.SandboxDetails) -> bool:
+    """ if in teardown keep polling """
+    if sandbox_details.state == model.SandboxStates.TEARDOWN:
+        return True
+    return False
+
+
+def _should_keep_polling_execution(exc_data: model.CommandExecutionDetails) -> bool:
+    unfinished_states = model.CommandExecutionStates.get_incomplete_execution_states()
+    if exc_data.status in unfinished_states:
+        return True
+    return False

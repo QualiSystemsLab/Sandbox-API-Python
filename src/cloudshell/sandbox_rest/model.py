@@ -2,42 +2,58 @@
 All pydantic BaseModel class representations of Sandbox API responses
 """
 from __future__ import annotations
+
+import json
 from enum import Enum
 from typing import TYPE_CHECKING, List, Optional
 
 from pydantic import BaseModel, Field
 
+RESPONSE_DICT_KEY = "response_dict"
+
+
 # added for dev intellisense: https://stackoverflow.com/a/71257588
 if TYPE_CHECKING:
     from dataclasses import dataclass as _basemodel_decorator
 else:
+
     def _basemodel_decorator(func):
         return func
 
 
 class SandboxApiBaseModel(BaseModel):
+    """ Base Model for all other classes. Defines useful helper methods """
+
     class Config:
         use_enum_values = True
 
     response_dict: dict = None
-    """ the original dictionary received from api response """
+    """ this attribute will cache the original response before loading into model """
+
+    @classmethod
+    def dict_to_model(cls, response_dict: dict) -> SandboxApiBaseModel:
+        """ calls parse_obj, but additionally caches the response dict """
+        wrapped_item = cls.parse_obj(response_dict)
+        wrapped_item.response_dict = response_dict
+        return wrapped_item
+
+    @classmethod
+    def list_to_models(cls, response_list: List[dict]) -> List[SandboxApiBaseModel]:
+        return [cls.dict_to_model(dict_item) for dict_item in response_list]
 
     def pretty_json(self, indent=4, exclude_response=True):
         excluded_key_set = set()
         if exclude_response:
-            excluded_key_set.add("response_dict")
+            excluded_key_set.add(RESPONSE_DICT_KEY)
         return self.json(indent=indent, exclude=excluded_key_set)
 
 
-def list_to_model(response_list: List[dict], model: SandboxApiBaseModel) -> List[SandboxApiBaseModel]:
-    return [dict_to_model(dict_item, model) for dict_item in response_list]
-
-
-def dict_to_model(response_dict: dict, model: SandboxApiBaseModel) -> SandboxApiBaseModel:
-    """ calls parse_obj, but additionally caches the response dict """
-    wrapped_item = model.parse_obj(response_dict)
-    wrapped_item.response_dict = response_dict
-    return wrapped_item
+def models_to_json(model_list: List[SandboxApiBaseModel]) -> str:
+    """ helper method to be used to convert a list of models to a list of dicts and dump to json """
+    list_of_dicts = [x.dict() for x in model_list]
+    excluded_keys = [RESPONSE_DICT_KEY]
+    updated_list = [{k: v for k, v in curr_dict if k not in excluded_keys} for curr_dict in list_of_dicts]
+    return json.dumps(updated_list, indent=4)
 
 
 class BlueprintAvailabilityStates(str, Enum):
@@ -73,6 +89,7 @@ class SetupStages(str, Enum):
     PROVISIONING = "Provisioning"
     CONNECTIVITY = "Connectivity"
     CONFIGURATION = "Configuration"
+    ENDED = "Ended"
 
 
 class SandboxEventTypes(str, Enum):
@@ -93,6 +110,10 @@ class CommandExecutionStates(str, Enum):
     CANCELLED = "Cancelled"
     COMPLETE = "Complete"
     FAILED = "Failed"
+
+    @classmethod
+    def get_incomplete_execution_states(cls) -> List:
+        return [cls.PENDING, cls.RUNNING]
 
 
 @_basemodel_decorator
@@ -142,6 +163,9 @@ class SandboxDetails(SandboxApiBaseModel):
     state: Optional[SandboxStates]
     setup_stage: Optional[SetupStages]
 
+    def components_to_json(self):
+        return models_to_json(self.components)
+
 
 @_basemodel_decorator
 class BlueprintReference(SandboxApiBaseModel):
@@ -174,6 +198,9 @@ class ActivityEventsResponse(SandboxApiBaseModel):
     more_pages: Optional[bool]
     next_event_id: Optional[int]
     events: Optional[List[SandboxEvent]]
+
+    def events_to_json(self) -> str:
+        return models_to_json(self.events)
 
 
 @_basemodel_decorator
@@ -230,8 +257,9 @@ class CommandExecutionDetails(SandboxApiBaseModel):
     started: Optional[str]
     ended: Optional[str]
     output: Optional[str]
-    command_context: Optional[CommandContextDetails] = Field(description="additional data to populate about command. "
-                                                                         "NOTE: this does not come from api response")
+    command_context: Optional[CommandContextDetails] = Field(
+        description="additional data to populate about command. " "NOTE: this does not come from api response"
+    )
 
 
 @_basemodel_decorator

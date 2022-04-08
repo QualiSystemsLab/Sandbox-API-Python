@@ -4,6 +4,7 @@ DEFAULT_EMPTY_BLUEPRINT = "Empty Blueprint"
 # this blueprint has a Putshell Resource in it
 # https://community.quali.com/repos/3318/put-shell-mock
 DUT_BLUEPRINT = "DUT Blueprint Test"
+SLEEP_ORCH_BLUEPRINT = "DUT Blueprint Sleep Orch"
 
 # DUT blueprint constants
 DUT_MODEL = "Putshell"

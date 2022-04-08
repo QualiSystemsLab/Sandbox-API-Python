@@ -13,6 +13,9 @@ from abstract_http_client.http_clients.requests_client import RequestsClient
 from tenacity import RetryError, retry, retry_if_result, stop_after_delay, wait_fixed
 
 from cloudshell.sandbox_rest import exceptions, model
+from cloudshell.sandbox_rest.default_logger import set_up_default_logger
+from pydantic.main import ValidationError
+
 
 
 @dataclass
@@ -28,29 +31,30 @@ class CommandInputParam:
 
 class SandboxRestApiSession(RequestsClient):
     """
-    Python wrapper for CloudShell Sandbox API
-    View http://<API_SERVER>/api/v2/explore to see schemas of return json values
+    Python client for CloudShell Sandbox REST api
+    View swagger UI at http://<API_SERVER>/api/v2/explore for raw JSON response schema
     """
 
     def __init__(
-        self,
-        host: str,
-        username="",
-        password="",
-        domain="Global",
-        token="",
-        port=82,
-        logger: logging.Logger = None,
-        use_https=False,
-        ssl_verify=False,
-        proxies: dict = None,
-        show_insecure_warning=False,
+            self,
+            host: str,
+            username="",
+            password="",
+            domain="Global",
+            token="",
+            port=82,
+            logger: logging.Logger = None,
+            use_https=False,
+            ssl_verify=False,
+            proxies: dict = None,
+            show_insecure_warning=False
     ):
         """ Login to api and store headers for future requests """
+        self.logger = logger or set_up_default_logger()
         super().__init__(host, username, password, token, logger, port, use_https, ssl_verify, proxies, show_insecure_warning)
+        self.domain = domain
         self._base_uri = "/api"
         self._v2_base_uri = f"{self._base_uri}/v2"
-        self.domain = domain
         self.login()
 
     def login(self, user="", password="", token="", domain="") -> None:
@@ -87,7 +91,8 @@ class SandboxRestApiSession(RequestsClient):
 
         login_token = response.text[1:-1]
         if not login_token:
-            raise exceptions.SandboxRestAuthException(f"Invalid token. Token response {response.text}")
+            err_msg = f"Invalid token. Token response {response.text}"
+            raise exceptions.SandboxRestAuthException(err_msg)
 
         return login_token
 
@@ -136,16 +141,16 @@ class SandboxRestApiSession(RequestsClient):
 
     # SANDBOX POST REQUESTS
     def _start_sandbox(
-        self,
-        blueprint_id: str,
-        sandbox_name: str,
-        duration: str = None,
-        bp_params: List[CommandInputParam] = None,
-        permitted_users: List[str] = None,
-        polling_setup: bool = False,
-        max_polling_minutes: int = 20,
-        polling_frequency_seconds: int = 30,
-        polling_log_level: str = logging.DEBUG,
+            self,
+            blueprint_id: str,
+            sandbox_name: str,
+            duration: str = None,
+            bp_params: List[CommandInputParam] = None,
+            permitted_users: List[str] = None,
+            polling_setup: bool = False,
+            max_polling_minutes: int = 20,
+            polling_frequency_seconds: int = 30,
+            polling_log_level: int = logging.DEBUG,
     ) -> model.SandboxDetails:
         """ internal implementation request to handle both regular and persistent sandbox requests """
         self._validate_auth_header()
@@ -174,67 +179,71 @@ class SandboxRestApiSession(RequestsClient):
         return sandbox_details
 
     def start_sandbox(
-        self,
-        blueprint_id: str,
-        sandbox_name: str = "",
-        duration: str = "PT2H0M",
-        bp_params: List[CommandInputParam] = None,
-        permitted_users: List[str] = None,
-        polling_setup: bool = False,
-        max_polling_minutes: int = 20,
-        polling_frequency_seconds: int = 30,
-        polling_log_level: str = logging.DEBUG,
+            self,
+            blueprint_id: str,
+            sandbox_name: str = "",
+            duration: str = "PT2H0M",
+            bp_params: List[CommandInputParam] = None,
+            permitted_users: List[str] = None,
+            polling_setup: bool = False,
+            max_polling_minutes: int = 20,
+            polling_frequency_seconds: int = 30,
+            polling_log_level: int = logging.DEBUG,
     ) -> model.SandboxDetails:
         """
         Create a sandbox from the provided blueprint id
         Duration format must be a valid 'ISO 8601'. (e.g 'PT23H' or 'PT4H2M')
         """
         return self._start_sandbox(
-            blueprint_id,
-            sandbox_name,
-            duration,
-            bp_params,
-            permitted_users,
-            polling_setup,
-            polling_log_level,
-            max_polling_minutes,
-            polling_frequency_seconds,
+            blueprint_id=blueprint_id,
+            sandbox_name=sandbox_name,
+            duration=duration,
+            bp_params=bp_params,
+            permitted_users=permitted_users,
+            polling_setup=polling_setup,
+            max_polling_minutes=max_polling_minutes,
+            polling_frequency_seconds=polling_frequency_seconds,
+            polling_log_level=polling_log_level
         )
 
     def start_persistent_sandbox(
-        self,
-        blueprint_id: str,
-        sandbox_name: str = "",
-        bp_params: List[CommandInputParam] = None,
-        permitted_users: List[str] = None,
-        polling_setup: bool = False,
-        max_polling_minutes: int = 20,
-        polling_frequency_seconds: int = 30,
-        polling_log_level: str = logging.DEBUG,
+            self,
+            blueprint_id: str,
+            sandbox_name: str = "",
+            bp_params: List[CommandInputParam] = None,
+            permitted_users: List[str] = None,
+            polling_setup: bool = False,
+            max_polling_minutes: int = 20,
+            polling_frequency_seconds: int = 30,
+            polling_log_level: int = logging.DEBUG,
     ) -> model.SandboxDetails:
         """
         Create a PERSISTENT sandbox from the provided blueprint id
         Duration format must be a valid 'ISO 8601'. (e.g 'PT23H' or 'PT4H2M')
         """
         return self._start_sandbox(
-            blueprint_id,
-            sandbox_name,
-            None,
-            bp_params,
-            permitted_users,
-            polling_setup,
-            polling_log_level,
-            max_polling_minutes,
-            polling_frequency_seconds,
+            blueprint_id=blueprint_id,
+            sandbox_name=sandbox_name,
+            duration=None,
+            bp_params=bp_params,
+            permitted_users=permitted_users,
+            polling_setup=polling_setup,
+            max_polling_minutes=max_polling_minutes,
+            polling_frequency_seconds=polling_frequency_seconds,
+            polling_log_level=polling_log_level
         )
 
     def run_sandbox_command(
-        self,
-        sandbox_id: str,
-        command_name: str,
-        params: List[CommandInputParam] = None,
-        print_output=True,
-    ) -> model.CommandStartResponse:
+            self,
+            sandbox_id: str,
+            command_name: str,
+            params: List[CommandInputParam] = None,
+            print_output=True,
+            polling_execution: bool = False,
+            max_polling_minutes: int = 20,
+            polling_frequency_seconds: int = 10,
+            polling_log_level: int = logging.DEBUG
+    ) -> model.EnvironmentCommandExecutionDetails:
         """Run a sandbox level command"""
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/sandboxes/{sandbox_id}/commands/{command_name}/start"
@@ -242,24 +251,69 @@ class SandboxRestApiSession(RequestsClient):
         params = [asdict(x) for x in params] if params else []
         data["params"] = params
         response_dict = self.rest_service.request_post(uri, data).json()
-        return model.CommandStartResponse.dict_to_model(response_dict)
+        start_response = model.CommandStartResponse.dict_to_model(response_dict)
+        model_wrapped_command_params = [model.CommandParameterNameValue(x.name, x.value) for x in params] if params else []
+        command_context = model.CommandContextDetails(sandbox_id=sandbox_id,
+                                                      command_name=command_name,
+                                                      command_params=model_wrapped_command_params)
+        if polling_execution:
+            execution_details = self.poll_command_execution(execution_id=start_response.executionId,
+                                                            max_polling_minutes=max_polling_minutes,
+                                                            polling_frequency_seconds=polling_frequency_seconds,
+                                                            log_level=polling_log_level)
+        else:
+            execution_details = self.get_execution_details(start_response.executionId)
+
+        return model.EnvironmentCommandExecutionDetails(id=start_response.executionId,
+                                                        status=execution_details.status,
+                                                        supports_cancellation=execution_details.supports_cancellation,
+                                                        started=execution_details.started,
+                                                        ended=execution_details.ended,
+                                                        output=execution_details.output,
+                                                        command_context=command_context)
 
     def run_component_command(
-        self,
-        sandbox_id: str,
-        component_id: str,
-        command_name: str,
-        params: List[CommandInputParam] = None,
-        print_output: bool = True,
-    ) -> model.CommandStartResponse:
+            self,
+            sandbox_id: str,
+            component_id: str,
+            command_name: str,
+            params: List[CommandInputParam] = None,
+            print_output: bool = True,
+            polling_execution: bool = False,
+            max_polling_minutes: int = 20,
+            polling_frequency_seconds: int = 10,
+            polling_log_level: int = logging.DEBUG
+    ) -> model.ResourceCommandExecutionDetails:
         """Start a command on sandbox component"""
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/sandboxes/{sandbox_id}/components/{component_id}/commands/{command_name}/start"
         data = {"printOutput": print_output}
-        params = [asdict(x) for x in params] if params else []
-        data["params"] = params
+        params_dicts = [asdict(x) for x in params] if params else []
+        data["params"] = params_dicts
         response_dict = self.rest_service.request_post(uri, data).json()
-        return model.CommandStartResponse.dict_to_model(response_dict)
+        start_response = model.CommandStartResponse.dict_to_model(response_dict)
+        component_details = self.get_sandbox_component_details(sandbox_id, component_id)
+        model_wrapped_command_params = [model.CommandParameterNameValue(x.name, x.value) for x in params] if params else []
+        command_context = model.ResourceCommandContextDetails(sandbox_id=sandbox_id,
+                                                              command_name=command_name,
+                                                              command_params=model_wrapped_command_params,
+                                                              component_name=component_details.name,
+                                                              component_id=component_details.id)
+        if polling_execution:
+            execution_details = self.poll_command_execution(execution_id=start_response.executionId,
+                                                            max_polling_minutes=max_polling_minutes,
+                                                            polling_frequency_seconds=polling_frequency_seconds,
+                                                            log_level=polling_log_level)
+        else:
+            execution_details = self.get_execution_details(start_response.executionId)
+
+        return model.ResourceCommandExecutionDetails(id=start_response.executionId,
+                                                     status=execution_details.status,
+                                                     supports_cancellation=execution_details.supports_cancellation,
+                                                     started=execution_details.started,
+                                                     ended=execution_details.ended,
+                                                     output=execution_details.output,
+                                                     command_context=command_context)
 
     def extend_sandbox(self, sandbox_id: str, duration: str) -> model.ExtendResponse:
         """Extend the sandbox
@@ -274,13 +328,13 @@ class SandboxRestApiSession(RequestsClient):
         return model.ExtendResponse.dict_to_model(response_dict)
 
     def stop_sandbox(
-        self,
-        sandbox_id: str,
-        poll_teardown=False,
-        max_polling_minutes: int = 20,
-        polling_frequency_seconds: int = 30,
-        polling_log_level: str = logging.DEBUG,
-    ) -> model.StopSandboxResponse:
+            self,
+            sandbox_id: str,
+            poll_teardown=False,
+            max_polling_minutes: int = 20,
+            polling_frequency_seconds: int = 30,
+            polling_log_level: str = logging.DEBUG,
+    ) -> model.SandboxDetails:
         """Stop the sandbox given sandbox id"""
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/sandboxes/{sandbox_id}/stop"
@@ -294,7 +348,7 @@ class SandboxRestApiSession(RequestsClient):
             return self.poll_sandbox_teardown(sandbox_id, max_polling_minutes, polling_frequency_seconds, polling_log_level)
 
         # if not polling, give teardown request chance to propagate before getting status
-        time.sleep(5)
+        time.sleep(3)
         return self.get_sandbox_details(sandbox_id)
 
     # SANDBOX GET REQUESTS
@@ -314,12 +368,12 @@ class SandboxRestApiSession(RequestsClient):
         return model.SandboxDetails.dict_to_model(response_dict)
 
     def get_sandbox_activity(
-        self,
-        sandbox_id: str,
-        error_only=False,
-        since="",
-        from_event_id: int = None,
-        tail: int = None,
+            self,
+            sandbox_id: str,
+            error_only=False,
+            since="",
+            from_event_id: int = None,
+            tail: int = None,
     ) -> model.ActivityEventsResponse:
         """
         Get list of sandbox activity
@@ -380,7 +434,7 @@ class SandboxRestApiSession(RequestsClient):
         return model.Command.list_to_models(response_list)
 
     def get_sandbox_component_command_details(
-        self, sandbox_id: str, component_id: str, command: str
+            self, sandbox_id: str, component_id: str, command: str
     ) -> model.CommandExecutionDetails:
         """Get details of a command of sandbox component"""
         self._validate_auth_header()
@@ -395,11 +449,11 @@ class SandboxRestApiSession(RequestsClient):
         return self.rest_service.request_get(uri).text
 
     def get_sandbox_output(
-        self,
-        sandbox_id: str,
-        tail: int = None,
-        from_entry_id: int = None,
-        since: str = None,
+            self,
+            sandbox_id: str,
+            tail: int = None,
+            from_entry_id: int = None,
+            since: str = None,
     ) -> model.SandboxOutput:
         """Get list of sandbox output"""
         self._validate_auth_header()
@@ -420,7 +474,14 @@ class SandboxRestApiSession(RequestsClient):
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/executions/{execution_id}"
         details_dict = self.rest_service.request_get(uri).json()
-        return model.CommandExecutionDetails.dict_to_model(details_dict)
+        try:
+            execution_details = model.CommandExecutionDetails.dict_to_model(details_dict)
+        except ValidationError as e:
+            err_msg = f"Validation error on execution '{execution_id}. Raw JSON:\n{json.dumps(details_dict, indent=4)}"
+            if self.logger:
+                self.logger.error(err_msg)
+            raise
+        return execution_details
 
     def delete_execution(self, execution_id: str) -> dict:
         """
@@ -438,21 +499,21 @@ class SandboxRestApiSession(RequestsClient):
 
     # Polling
     def _poll_orchestration_state(
-        self,
-        orchestration_type: str,
-        reservation_id: str,
-        polling_func: Callable,
-        max_polling_minutes: int,
-        polling_frequency_seconds: int,
-        log_level=logging.DEBUG,
+            self,
+            orchestration_type: str,
+            reservation_id: str,
+            polling_func: Callable,
+            max_polling_minutes: int,
+            polling_frequency_seconds: int,
+            log_level=logging.DEBUG,
     ) -> model.SandboxDetails:
         """ Create blocking polling process """
 
         def poll_and_log(sb_details: model.SandboxDetails):
             if self.logger:
-                polling_msg = f"Polling {orchestration_type} for sandbox '{sb_details.id}'..."
+                polling_msg = f"Polling {orchestration_type} for sandbox '{sb_details.id}'. State: {sb_details.state}..."
                 self.logger.log(log_level, polling_msg)
-            polling_func(sb_details)
+            return polling_func(sb_details)
 
         @retry(
             retry=retry_if_result(poll_and_log),
@@ -465,15 +526,15 @@ class SandboxRestApiSession(RequestsClient):
         try:
             sandbox_details = retry_poll_sandbox_details()
         except RetryError:
-            raise exceptions.OrchestrationPollingTimeout(f"Sandbox Polling time out after {max_polling_minutes} minutes")
+            raise exceptions.OrchestrationPollingTimeout(f"Sandbox Polling timed out after {max_polling_minutes} minutes")
         return sandbox_details
 
     def poll_sandbox_setup(
-        self, reservation_id: str, max_polling_minutes=20, polling_frequency_seconds=30, log_level=logging.DEBUG
+            self, reservation_id: str, max_polling_minutes=20, polling_frequency_seconds=30, log_level: int = logging.DEBUG
     ) -> model.SandboxDetails:
         """ poll setup until completion """
         sandbox_details = self._poll_orchestration_state(
-            orchestration_type="Setup",
+            orchestration_type="SETUP",
             reservation_id=reservation_id,
             polling_func=_should_keep_polling_setup,
             max_polling_minutes=max_polling_minutes,
@@ -490,13 +551,13 @@ class SandboxRestApiSession(RequestsClient):
         return sandbox_details
 
     def poll_sandbox_teardown(
-        self, reservation_id: str, max_polling_minutes=20, polling_frequency_seconds=30, log_level=logging.DEBUG
+            self, reservation_id: str, max_polling_minutes=20, polling_frequency_seconds=30, log_level: int = logging.DEBUG
     ) -> model.SandboxDetails:
         """ poll teardown until completion  """
         latest_event_request = self.get_sandbox_activity(reservation_id, tail=1).events
         latest_event_id = latest_event_request[0].id if latest_event_request else 0
         sandbox_details = self._poll_orchestration_state(
-            orchestration_type="Teardown",
+            orchestration_type="TEARDOWN",
             reservation_id=reservation_id,
             polling_func=_should_keep_polling_teardown,
             max_polling_minutes=max_polling_minutes,
@@ -511,6 +572,36 @@ class SandboxRestApiSession(RequestsClient):
                 f"Failed teardown - sandbox id: '{reservation_id}'", error_events=teardown_error_events
             )
         return sandbox_details
+
+    def poll_command_execution(self,
+                               execution_id: str,
+                               max_polling_minutes: int,
+                               polling_frequency_seconds: int,
+                               log_level=logging.DEBUG,
+                               ) -> model.CommandExecutionDetails:
+        """ Create blocking polling process """
+
+        def poll_and_log(execution_data: model.CommandExecutionDetails) -> bool:
+            if self.logger:
+                polling_msg = f"Polling execution '{execution_data.id}'.  Status: '{execution_data.status}'..."
+                self.logger.log(log_level, polling_msg)
+            return _should_keep_polling_execution(execution_data)
+
+        @retry(
+            retry=retry_if_result(poll_and_log),
+            wait=wait_fixed(polling_frequency_seconds),
+            stop=stop_after_delay(max_polling_minutes * 60),
+        )
+        def retry_poll_execution():
+            return self.get_execution_details(execution_id)
+
+        pre_poll_execution_details = self.get_execution_details(execution_id)
+        try:
+            execution_details = retry_poll_execution()
+        except RetryError:
+            err_msg = f"Execution '{pre_poll_execution_details.id}' timed out after {max_polling_minutes} minutes"
+            raise exceptions.CommandPollingTimeout(err_msg)
+        return execution_details
 
 
 # Polling Helpers
@@ -529,8 +620,8 @@ def _should_keep_polling_teardown(sandbox_details: model.SandboxDetails) -> bool
     return False
 
 
-def _should_keep_polling_execution(exc_data: model.CommandExecutionDetails) -> bool:
+def _should_keep_polling_execution(execution_data: model.CommandExecutionDetails) -> bool:
     unfinished_states = model.CommandExecutionStates.get_incomplete_execution_states()
-    if exc_data.status in unfinished_states:
+    if execution_data.status in unfinished_states:
         return True
     return False

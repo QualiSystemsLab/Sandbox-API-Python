@@ -1,17 +1,18 @@
 import time
 
 import pytest
-from constants import *
-from env_settings import *
+import constants
+import env_settings
 
 from cloudshell.sandbox_rest.api import SandboxRestApiSession
 
 
 @pytest.fixture(scope="session")
 def admin_session() -> SandboxRestApiSession:
-    admin_api = SandboxRestApiSession(
-        host=CLOUDSHELL_SERVER, username=CLOUDSHELL_ADMIN_USER, password=CLOUDSHELL_ADMIN_PASSWORD, domain=CLOUDSHELL_DOMAIN
-    )
+    admin_api = SandboxRestApiSession(host=env_settings.CLOUDSHELL_SERVER,
+                                      username=env_settings.CLOUDSHELL_ADMIN_USER,
+                                      password=env_settings.CLOUDSHELL_ADMIN_PASSWORD,
+                                      domain=env_settings.CLOUDSHELL_DOMAIN)
     print(f"Admin session started. Token: {admin_api.token}")
     with admin_api:
         yield admin_api
@@ -23,9 +24,16 @@ def admin_session() -> SandboxRestApiSession:
 
 @pytest.fixture(scope="session")
 def empty_blueprint():
-    return DEFAULT_EMPTY_BLUEPRINT
+    return constants.DEFAULT_EMPTY_BLUEPRINT
 
 
 @pytest.fixture(scope="session")
 def dut_blueprint():
-    return DUT_BLUEPRINT
+    return constants.DUT_BLUEPRINT
+
+
+@pytest.fixture(scope="session")
+def sleep_orch_blueprint():
+    return constants.SLEEP_ORCH_BLUEPRINT
+
+

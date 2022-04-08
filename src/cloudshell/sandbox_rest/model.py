@@ -11,7 +11,6 @@ from pydantic import BaseModel, Field
 
 RESPONSE_DICT_KEY = "response_dict"
 
-
 # added for dev intellisense: https://stackoverflow.com/a/71257588
 if TYPE_CHECKING:
     from dataclasses import dataclass as _basemodel_decorator
@@ -108,7 +107,7 @@ class CommandExecutionStates(str, Enum):
     RUNNING = "Running"
     STOPPING = "Stopping"
     CANCELLED = "Cancelled"
-    COMPLETE = "Complete"
+    COMPLETE = "Completed"
     FAILED = "Failed"
 
     @classmethod
@@ -241,15 +240,6 @@ class CommandStartResponse(SandboxApiBaseModel):
 
 
 @_basemodel_decorator
-class CommandContextDetails(SandboxApiBaseModel):
-    sandbox_id: Optional[str]
-    component_name: Optional[str]
-    component_id: Optional[str]
-    command_name: Optional[str]
-    command_params: Optional[List[CommandParameterNameValue]]
-
-
-@_basemodel_decorator
 class CommandExecutionDetails(SandboxApiBaseModel):
     id: Optional[str]
     status: Optional[CommandExecutionStates]
@@ -257,9 +247,29 @@ class CommandExecutionDetails(SandboxApiBaseModel):
     started: Optional[str]
     ended: Optional[str]
     output: Optional[str]
-    command_context: Optional[CommandContextDetails] = Field(
-        description="additional data to populate about command. " "NOTE: this does not come from api response"
-    )
+
+
+@_basemodel_decorator
+class CommandContextDetails(SandboxApiBaseModel):
+    sandbox_id: Optional[str]
+    command_name: Optional[str]
+    command_params: Optional[List[CommandParameterNameValue]]
+
+
+@_basemodel_decorator
+class ResourceCommandContextDetails(CommandContextDetails):
+    component_name: Optional[str]
+    component_id: Optional[str]
+
+
+@_basemodel_decorator
+class EnvironmentCommandExecutionDetails(CommandExecutionDetails):
+    command_context: Optional[CommandContextDetails]
+
+
+@_basemodel_decorator
+class ResourceCommandExecutionDetails(CommandExecutionDetails):
+    command_context: Optional[ResourceCommandContextDetails]
 
 
 @_basemodel_decorator

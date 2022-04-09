@@ -7,7 +7,7 @@ import json
 from enum import Enum
 from typing import TYPE_CHECKING, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 RESPONSE_DICT_KEY = "response_dict"
 
@@ -250,29 +250,6 @@ class CommandExecutionDetails(SandboxApiBaseModel):
 
 
 @_basemodel_decorator
-class CommandContextDetails(SandboxApiBaseModel):
-    sandbox_id: Optional[str]
-    command_name: Optional[str]
-    command_params: Optional[List[CommandParameterNameValue]]
-
-
-@_basemodel_decorator
-class ResourceCommandContextDetails(CommandContextDetails):
-    component_name: Optional[str]
-    component_id: Optional[str]
-
-
-@_basemodel_decorator
-class EnvironmentCommandExecutionDetails(CommandExecutionDetails):
-    command_context: Optional[CommandContextDetails]
-
-
-@_basemodel_decorator
-class ResourceCommandExecutionDetails(CommandExecutionDetails):
-    command_context: Optional[ResourceCommandContextDetails]
-
-
-@_basemodel_decorator
 class ComponentAttribute(SandboxApiBaseModel):
     type: Optional[str]
     name: Optional[str]
@@ -330,7 +307,30 @@ class SandboxOutput(SandboxApiBaseModel):
     entries: Optional[List[SandboxOutputEntry]]
 
 
-# Missing from Swagger Schema Docs
+# ===== Custom Data Models NOT returned from endpoint responses
 @_basemodel_decorator
 class StopSandboxResponse(SandboxApiBaseModel):
     result: Optional[str] = "success"
+
+
+@_basemodel_decorator
+class CommandContextDetails(SandboxApiBaseModel):
+    sandbox_id: Optional[str]
+    command_name: Optional[str]
+    command_params: Optional[List[CommandParameterNameValue]]
+
+
+@_basemodel_decorator
+class ComponentCommandContextDetails(CommandContextDetails):
+    component_name: Optional[str]
+    component_id: Optional[str]
+
+
+@_basemodel_decorator
+class EnvironmentCommandExecutionDetails(CommandExecutionDetails):
+    command_context: Optional[CommandContextDetails]
+
+
+@_basemodel_decorator
+class ComponentCommandExecutionDetails(CommandExecutionDetails):
+    command_context: Optional[ComponentCommandContextDetails]

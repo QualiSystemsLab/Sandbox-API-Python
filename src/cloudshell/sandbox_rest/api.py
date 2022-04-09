@@ -283,7 +283,7 @@ class SandboxRestApiSession(RequestsClient):
             max_polling_minutes: int = 20,
             polling_frequency_seconds: int = 10,
             polling_log_level: int = logging.DEBUG
-    ) -> model.ResourceCommandExecutionDetails:
+    ) -> model.ComponentCommandExecutionDetails:
         """Start a command on sandbox component"""
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/sandboxes/{sandbox_id}/components/{component_id}/commands/{command_name}/start"
@@ -294,11 +294,11 @@ class SandboxRestApiSession(RequestsClient):
         start_response = model.CommandStartResponse.dict_to_model(response_dict)
         component_details = self.get_sandbox_component_details(sandbox_id, component_id)
         model_wrapped_command_params = [model.CommandParameterNameValue(x.name, x.value) for x in params] if params else []
-        command_context = model.ResourceCommandContextDetails(sandbox_id=sandbox_id,
-                                                              command_name=command_name,
-                                                              command_params=model_wrapped_command_params,
-                                                              component_name=component_details.name,
-                                                              component_id=component_details.id)
+        command_context = model.ComponentCommandContextDetails(sandbox_id=sandbox_id,
+                                                               command_name=command_name,
+                                                               command_params=model_wrapped_command_params,
+                                                               component_name=component_details.name,
+                                                               component_id=component_details.id)
         if polling_execution:
             execution_details = self.poll_command_execution(execution_id=start_response.executionId,
                                                             max_polling_minutes=max_polling_minutes,
@@ -307,13 +307,13 @@ class SandboxRestApiSession(RequestsClient):
         else:
             execution_details = self.get_execution_details(start_response.executionId)
 
-        return model.ResourceCommandExecutionDetails(id=start_response.executionId,
-                                                     status=execution_details.status,
-                                                     supports_cancellation=execution_details.supports_cancellation,
-                                                     started=execution_details.started,
-                                                     ended=execution_details.ended,
-                                                     output=execution_details.output,
-                                                     command_context=command_context)
+        return model.ComponentCommandExecutionDetails(id=start_response.executionId,
+                                                      status=execution_details.status,
+                                                      supports_cancellation=execution_details.supports_cancellation,
+                                                      started=execution_details.started,
+                                                      ended=execution_details.ended,
+                                                      output=execution_details.output,
+                                                      command_context=command_context)
 
     def extend_sandbox(self, sandbox_id: str, duration: str) -> model.ExtendResponse:
         """Extend the sandbox

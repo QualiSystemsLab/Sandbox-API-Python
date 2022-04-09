@@ -3,3 +3,4 @@ python-dotenv
 flake8
 pylint
 pre-commit
+cloudshell-orch-core

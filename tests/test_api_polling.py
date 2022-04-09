@@ -65,6 +65,6 @@ def test_component_command_blocking(admin_session: SandboxRestApiSession, sandbo
                                                    polling_execution=True,
                                                    polling_log_level=logging.INFO)
     common.fixed_sleep()
-    assert isinstance(response, model.ResourceCommandExecutionDetails)
+    assert isinstance(response, model.ComponentCommandExecutionDetails)
     print(f"Resource command finished after {default_timer() - start:.2f} seconds.\n"
           f"Execution response: {response.pretty_json()}")

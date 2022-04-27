@@ -37,7 +37,7 @@ class SetupFailedException(FailedOrchestrationException):
         super().__init__(message, error_events)
 
 
-class TeardownFailedException(SandboxRestException):
+class TeardownFailedException(FailedOrchestrationException):
     def __init__(self, message: str, error_events: List[model.SandboxEvent] = None):
         super().__init__(message, error_events)
 

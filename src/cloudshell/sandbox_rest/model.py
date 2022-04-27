@@ -214,8 +214,8 @@ class CommandParameterDetails(SandboxApiBaseModel):
 
 @_basemodel_decorator
 class CommandParameterNameValue(SandboxApiBaseModel):
-    name: Optional[str]
-    value: Optional[str]
+    name: str
+    value: str
 
 
 @_basemodel_decorator
@@ -314,23 +314,23 @@ class StopSandboxResponse(SandboxApiBaseModel):
 
 
 @_basemodel_decorator
-class CommandContextDetails(SandboxApiBaseModel):
+class SandboxCommandContext(SandboxApiBaseModel):
     sandbox_id: Optional[str]
     command_name: Optional[str]
     command_params: Optional[List[CommandParameterNameValue]]
 
 
 @_basemodel_decorator
-class ComponentCommandContextDetails(CommandContextDetails):
+class ComponentCommandContext(SandboxCommandContext):
     component_name: Optional[str]
     component_id: Optional[str]
 
 
 @_basemodel_decorator
-class EnvironmentCommandExecutionDetails(CommandExecutionDetails):
-    command_context: Optional[CommandContextDetails]
+class SandboxCommandExecutionDetails(CommandExecutionDetails):
+    command_context: Optional[SandboxCommandContext]
 
 
 @_basemodel_decorator
 class ComponentCommandExecutionDetails(CommandExecutionDetails):
-    command_context: Optional[ComponentCommandContextDetails]
+    command_context: Optional[ComponentCommandContext]

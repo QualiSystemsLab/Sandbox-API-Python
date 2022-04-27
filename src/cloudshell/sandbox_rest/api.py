@@ -13,9 +13,7 @@ from abstract_http_client.http_clients.requests_client import RequestsClient
 from tenacity import RetryError, retry, retry_if_result, stop_after_delay, wait_fixed
 
 from cloudshell.sandbox_rest import exceptions, model
-from cloudshell.sandbox_rest.default_logger import set_up_default_logger
 from pydantic.main import ValidationError
-
 
 
 @dataclass
@@ -50,7 +48,7 @@ class SandboxRestApiSession(RequestsClient):
             show_insecure_warning=False
     ):
         """ Login to api and store headers for future requests """
-        self.logger = logger or set_up_default_logger()
+        self.logger = logger
         super().__init__(host, username, password, token, logger, port, use_https, ssl_verify, proxies, show_insecure_warning)
         self.domain = domain
         self._base_uri = "/api"
@@ -243,7 +241,7 @@ class SandboxRestApiSession(RequestsClient):
             max_polling_minutes: int = 20,
             polling_frequency_seconds: int = 10,
             polling_log_level: int = logging.DEBUG
-    ) -> model.EnvironmentCommandExecutionDetails:
+    ) -> model.SandboxCommandExecutionDetails:
         """Run a sandbox level command"""
         self._validate_auth_header()
         uri = f"{self._v2_base_uri}/sandboxes/{sandbox_id}/commands/{command_name}/start"
@@ -253,7 +251,7 @@ class SandboxRestApiSession(RequestsClient):
         response_dict = self.rest_service.request_post(uri, data).json()
         start_response = model.CommandStartResponse.dict_to_model(response_dict)
         model_wrapped_command_params = [model.CommandParameterNameValue(x.name, x.value) for x in params] if params else []
-        command_context = model.CommandContextDetails(sandbox_id=sandbox_id,
+        command_context = model.SandboxCommandContext(sandbox_id=sandbox_id,
                                                       command_name=command_name,
                                                       command_params=model_wrapped_command_params)
         if polling_execution:
@@ -264,13 +262,13 @@ class SandboxRestApiSession(RequestsClient):
         else:
             execution_details = self.get_execution_details(start_response.executionId)
 
-        return model.EnvironmentCommandExecutionDetails(id=start_response.executionId,
-                                                        status=execution_details.status,
-                                                        supports_cancellation=execution_details.supports_cancellation,
-                                                        started=execution_details.started,
-                                                        ended=execution_details.ended,
-                                                        output=execution_details.output,
-                                                        command_context=command_context)
+        return model.SandboxCommandExecutionDetails(id=start_response.executionId,
+                                                    status=execution_details.status,
+                                                    supports_cancellation=execution_details.supports_cancellation,
+                                                    started=execution_details.started,
+                                                    ended=execution_details.ended,
+                                                    output=execution_details.output,
+                                                    command_context=command_context)
 
     def run_component_command(
             self,
@@ -294,11 +292,11 @@ class SandboxRestApiSession(RequestsClient):
         start_response = model.CommandStartResponse.dict_to_model(response_dict)
         component_details = self.get_sandbox_component_details(sandbox_id, component_id)
         model_wrapped_command_params = [model.CommandParameterNameValue(x.name, x.value) for x in params] if params else []
-        command_context = model.ComponentCommandContextDetails(sandbox_id=sandbox_id,
-                                                               command_name=command_name,
-                                                               command_params=model_wrapped_command_params,
-                                                               component_name=component_details.name,
-                                                               component_id=component_details.id)
+        command_context = model.ComponentCommandContext(sandbox_id=sandbox_id,
+                                                        command_name=command_name,
+                                                        command_params=model_wrapped_command_params,
+                                                        component_name=component_details.name,
+                                                        component_id=component_details.id)
         if polling_execution:
             execution_details = self.poll_command_execution(execution_id=start_response.executionId,
                                                             max_polling_minutes=max_polling_minutes,
@@ -575,8 +573,8 @@ class SandboxRestApiSession(RequestsClient):
 
     def poll_command_execution(self,
                                execution_id: str,
-                               max_polling_minutes: int,
-                               polling_frequency_seconds: int,
+                               max_polling_minutes=10,
+                               polling_frequency_seconds=30,
                                log_level=logging.DEBUG,
                                ) -> model.CommandExecutionDetails:
         """ Create blocking polling process """

@@ -36,8 +36,16 @@ class TeardownSettings:
     polling_log_level: int = logging.DEBUG
 
 
+@dataclass
+class OrchMetadata:
+    setup_duration_seconds: int = None
+    teardown_duration_seconds: int = None
+    setup_errors: List[model.SandboxEvent] = None
+    teardown_errors: List[model.SandboxEvent] = None
+
+
 class SandboxControllerContext:
-    def __init__(self, api: SandboxRestApiSession, sandbox_id: str = None,sandbox_request: SandboxStartRequest = None,
+    def __init__(self, api: SandboxRestApiSession, sandbox_id: str = None, sandbox_request: SandboxStartRequest = None,
                  teardown_settings = TeardownSettings(), logger: logging.Logger = None):
         self.api = api
         self.sandbox_id = sandbox_id
@@ -46,15 +54,17 @@ class SandboxControllerContext:
         self.logger = logger
         self.components = SandboxComponents()
         self.async_executor = AsyncCommandExecutor()
-        self.setup_duration_seconds: int = None
-        self.teardown_duration_seconds: int = None
-        self.setup_errors: List[model.SandboxEvent] = None
-        self.teardown_errors: List[model.SandboxEvent] = None
-        self._validate_init()
+        self.orch_metadata = OrchMetadata()
+        self._handle_init()
 
-    def _validate_init(self):
+    def _handle_init(self):
         if not self.sandbox_request and not self.sandbox_id:
             raise ValueError("Must supply either an existing sandbox id or a SandboxStartRequest object")
+        if self.sandbox_id and self.sandbox_request:
+            raise ValueError("Pass either existing sandbox id, or SandboxStartRequest object to init, not both")
+        if self.sandbox_id:
+            self._info_log(f"Existing sandbox id '{self.sandbox_id}' passed. Refreshing components")
+            self.refresh_components()
 
     def _info_log(self, msg: str):
         if self.logger:
@@ -67,6 +77,9 @@ class SandboxControllerContext:
     def _error_log(self, msg: str):
         if self.logger:
             self.logger.error(msg)
+
+    def refresh_components(self):
+        self.components.refresh_components(self.api, self.sandbox_id)
 
     def launch_sandbox(self):
         if self.sandbox_id:
@@ -82,7 +95,7 @@ class SandboxControllerContext:
                                                 bp_params=self.sandbox_request.bp_params,
                                                 permitted_users=self.sandbox_request.permitted_users)
         self.sandbox_id = start_response.id
-        self._info_log(f"Sandbox '{self.sandbox_id}' started.")
+        self._info_log(f"Sandbox '{self.sandbox_id}' LAUNCHED.")
         self._info_log("Starting blocking sandbox and polling...")
         start = default_timer()
         try:
@@ -91,7 +104,7 @@ class SandboxControllerContext:
                                         polling_frequency_seconds=self.sandbox_request.polling_frequency_seconds,
                                         log_level=self.sandbox_request.polling_log_level)
         except exceptions.SetupFailedException as e:
-            self.setup_errors = e.error_events
+            self.orch_metadata.setup_errors = e.error_events
             setup_duration_seconds = default_timer() - start
             self._error_log(f"Sandbox '{self.sandbox_id}' setup FAILED after {setup_duration_seconds} seconds")
             self._error_log(str(e))
@@ -99,7 +112,7 @@ class SandboxControllerContext:
 
         setup_duration_seconds = default_timer() - start
         self._info_log(f"Sandbox '{self.sandbox_id}' setup completed after {setup_duration_seconds} seconds")
-        self.setup_duration_seconds = setup_duration_seconds
+        self.orch_metadata.setup_duration_seconds = setup_duration_seconds
         self.refresh_components()
 
     def teardown_sandbox(self):
@@ -107,7 +120,7 @@ class SandboxControllerContext:
             self._debug_log("Trying to start teardown, but no sandbox ID found. Returning")
             return
 
-        if self.teardown_duration_seconds:
+        if self.orch_metadata.teardown_duration_seconds:
             self._debug_log(f"Teardown has already ran for sandbox '{self.sandbox_id}'. Returning")
 
         self._info_log(f"starting blocking teardown of sandbox '{self.sandbox_id}'")
@@ -119,7 +132,7 @@ class SandboxControllerContext:
                                   polling_frequency_seconds=self.teardown_settings.polling_frequency_seconds,
                                   polling_log_level=self.teardown_settings.polling_log_level)
         except exceptions.TeardownFailedException as e:
-            self.teardown_errors = e.error_events
+            self.orch_metadata.teardown_errors = e.error_events
             teardown_duration_seconds = default_timer() - start
             self._error_log(f"Sandbox '{self.sandbox_id}' setup FAILED after {teardown_duration_seconds} seconds")
             self._error_log(str(e))
@@ -127,12 +140,13 @@ class SandboxControllerContext:
 
         teardown_duration_seconds = default_timer() - start
         self._info_log(f"Sandbox '{self.sandbox_id}' teardown completed after {teardown_duration_seconds} seconds")
-        self.teardown_duration_seconds = teardown_duration_seconds
+        self.orch_metadata.teardown_duration_seconds = teardown_duration_seconds
         self.refresh_components()
 
     def __enter__(self):
         """ start sandbox """
-        self.launch_sandbox()
+        if not self.sandbox_id:
+            self.launch_sandbox()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -140,8 +154,7 @@ class SandboxControllerContext:
         self.teardown_sandbox()
         return self
 
-    def refresh_components(self):
-        self.components.refresh_components(self.api, self.sandbox_id)
+
 
 
 if __name__ == "__main__":
